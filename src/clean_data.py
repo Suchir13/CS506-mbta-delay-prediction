@@ -17,6 +17,87 @@ OUTLIER_MINUTES = 120
 DELAY_THRESHOLD_MINUTES = 5
 
 
+def _fail(msg):
+    raise ValueError(f"Data validation failed: {msg}")
+
+
+def validate_schema(df):
+    """
+    Validate required columns for supported MBTA input formats.
+
+    Supported delay sources:
+      - delay_minutes
+      - (travel_time_sec and benchmark_travel_time_sec)
+    """
+    if df.empty:
+        _fail("input dataframe is empty")
+
+    base_required = ["route_id", "date"]
+    missing_base = [c for c in base_required if c not in df.columns]
+    if missing_base:
+        _fail(f"missing required base columns: {missing_base}")
+
+    has_delay_col = "delay_minutes" in df.columns
+    has_perf_cols = {"travel_time_sec", "benchmark_travel_time_sec"}.issubset(df.columns)
+    if not (has_delay_col or has_perf_cols):
+        _fail(
+            "need either 'delay_minutes' OR both "
+            "'travel_time_sec' and 'benchmark_travel_time_sec'"
+        )
+
+
+def normalize_core_fields(df):
+    """Normalize key field types and canonical date format."""
+    for col in ["route_id", "trip_id", "stop_id"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+            df[col] = df[col].replace({"": np.nan, "nan": np.nan, "None": np.nan})
+
+    # Normalize date to YYYY-MM-DD
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    return df
+
+
+def drop_missing_required_keys(df):
+    """
+    Drop rows with missing critical keys.
+
+    Always required:
+      route_id, date
+
+    Required if present in schema:
+      trip_id, stop_id, scheduled_arrival
+    """
+    keys = ["route_id", "date"]
+    for optional_key in ["trip_id", "stop_id", "scheduled_arrival"]:
+        if optional_key in df.columns:
+            keys.append(optional_key)
+
+    before = len(df)
+    df = df.dropna(subset=keys)
+    dropped = before - len(df)
+    return df, keys, dropped
+
+
+def deduplicate_mbta(df):
+    """Apply deterministic deduplication with a stable keep-first rule."""
+    dedup_key_candidates = ["route_id", "trip_id", "stop_id", "date", "scheduled_arrival"]
+    dedup_keys = [c for c in dedup_key_candidates if c in df.columns]
+
+    if len(dedup_keys) < 3:
+        # Not enough reliable identifiers to deduplicate safely.
+        return df, dedup_keys, 0
+
+    before = len(df)
+    df = df.copy()
+    df["_row_order"] = np.arange(len(df))
+    df = df.sort_values(by=dedup_keys + ["_row_order"], kind="mergesort")
+    df = df.drop_duplicates(subset=dedup_keys, keep="first")
+    df = df.sort_values(by="_row_order", kind="mergesort").drop(columns=["_row_order"])
+    dropped = before - len(df)
+    return df, dedup_keys, dropped
+
+
 def load_travel_times():
     path = f"{RAW_DIR}/travel_times.csv"
     if not os.path.exists(path):
@@ -81,6 +162,14 @@ def clean_mbta(df):
     if df.empty:
         return df
 
+    validate_schema(df)
+    raw_rows = len(df)
+
+    df = normalize_core_fields(df)
+    df, required_keys, dropped_missing = drop_missing_required_keys(df)
+
+    df, dedup_keys, dropped_dupes = deduplicate_mbta(df)
+
     # Ensure delay_minutes column exists
     if "delay_minutes" not in df.columns:
         if "travel_time_sec" in df.columns and "benchmark_travel_time_sec" in df.columns:
@@ -89,13 +178,26 @@ def clean_mbta(df):
             print("Cannot compute delay_minutes — missing required columns.")
             return pd.DataFrame()
 
+    before_delay_drop = len(df)
+    df["delay_minutes"] = pd.to_numeric(df["delay_minutes"], errors="coerce")
     df = df.dropna(subset=["delay_minutes", "date"])
+    dropped_invalid_delay = before_delay_drop - len(df)
+
     df["is_outlier"] = (df["delay_minutes"].abs() > OUTLIER_MINUTES)
     df["is_delayed"] = (df["delay_minutes"] > DELAY_THRESHOLD_MINUTES).astype(int)
 
     n_out = df["is_outlier"].sum()
-    if n_out > 0:
-        print(f"Flagged {n_out} outlier rows (|delay| > {OUTLIER_MINUTES} min).")
+    print("Cleaning summary:")
+    print(f"  Raw rows: {raw_rows}")
+    print(f"  Dropped missing required keys {required_keys}: {dropped_missing}")
+    if dedup_keys:
+        print(f"  Dedup key: {dedup_keys}")
+        print(f"  Duplicates removed: {dropped_dupes}")
+    else:
+        print("  Dedup skipped: insufficient key columns")
+    print(f"  Dropped invalid/non-numeric delay rows: {dropped_invalid_delay}")
+    print(f"  Outlier rows flagged (|delay| > {OUTLIER_MINUTES} min): {n_out}")
+    print(f"  Final cleaned rows: {len(df)}")
 
     return df
 
