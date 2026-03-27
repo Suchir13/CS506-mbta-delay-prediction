@@ -88,10 +88,21 @@ def select_features(df):
     feature_cols = [c for c in feature_cols if c in df.columns]
     df_feat = df[feature_cols].copy()
 
-    # Drop any remaining NaNs in feature columns
+    # New approach: Instead of dropping all rows with any NaN, we fill weather-related NaNs with defaults and only drop rows missing critical features.
+    # Handle missing values (especially weather data)
     before = len(df_feat)
-    df_feat = df_feat.dropna()
+
+    # Fill weather-related columns with defaults
+    weather_cols = ["TMAX", "TMIN", "PRCP", "SNOW", "AWND"]
+    for col in weather_cols:
+        if col in df_feat.columns:
+            df_feat[col] = df_feat[col].fillna(0)
+
+    # Drop rows only if critical columns are missing
+    df_feat = df_feat.dropna(subset=["hour", "day_of_week", "route_encoded", "is_delayed"])
+
     after = len(df_feat)
+    #indented return backwards
     if before != after:
         print(f"Dropped {before - after} rows with NaN values in features.")
 
