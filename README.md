@@ -1,171 +1,244 @@
 # Predicting MBTA Bus Delays Using Weather and Time Features
-BU CS506 Final Project
+**BU CS 506 Final Project**
+
+> 🎥 **Presentation Video:** [Link to be added after recording]
+
+---
 
 ## Project Description
 
-Public transportation reliability is critical for daily commuters in Boston. This project aims to predict whether an MBTA bus will experience a significant delay (e.g., more than 5 minutes late) using historical bus arrival data, weather conditions, and time-based features.
+Public transportation reliability is critical for daily commuters in Boston. This project predicts whether an MBTA bus will arrive **more than 5 minutes late** using historical bus schedule/prediction data combined with Boston weather conditions and time-based features.
 
-Understanding delay patterns can help identify factors contributing to unreliable service and provide insights for transit optimization.
+Understanding delay patterns helps identify factors contributing to unreliable service and provides insights for transit optimization.
+
+---
+
+## How to Build and Run
+
+### 1. Prerequisites
+- Python 3.9 or newer
+- `pip`
+- A free [MBTA API key](https://api-v3.mbta.com/) (improves rate limits)
+- A free [NOAA CDO token](https://www.ncdc.noaa.gov/cdo-web/token) (required for weather data)
+
+### 2. Clone and Install
+```bash
+git clone https://github.com/YOUR_USERNAME/mbta-delay-prediction.git
+cd mbta-delay-prediction
+make install
+```
+
+### 3. Set Up API Keys
+```bash
+cp .env.example .env
+# Open .env and fill in your MBTA_API_KEY and NOAA_TOKEN
+```
+
+### 4. Run the Full Pipeline
+```bash
+make all
+```
+Or run each step individually:
+```bash
+make collect     # Download MBTA + weather data → data/raw/
+make clean       # Merge, compute delays, clean → data/processed/clean.csv
+make features    # Engineer features → data/processed/features.csv
+make train       # Train models, print metrics → data/processed/best_model.pkl
+make visualize   # Generate all plots → data/processed/plots/
+```
+
+### 5. Run Tests
+```bash
+make test
+```
 
 ---
 
 ## Project Goals
 
-**Primary Goal:**
-- Predict whether a bus arrival will be delayed by more than 5 minutes using weather and time-based features.
+**Primary Goal:** Predict whether a bus arrival will be delayed by more than 5 minutes using weather and time-based features.
 
 **Secondary Goals:**
-- Identify which factors (e.g., rainfall, temperature, time of day, day of week) most strongly influence delays.
-- Visualize patterns in delays across routes, times, and weather conditions.
+- Identify which factors (rainfall, temperature, time of day, day of week) most strongly influence delays.
+- Visualize delay patterns across routes, times, and weather conditions.
 
 ---
 
-## Data Collection Plan
+## Data Collection
 
-### 1. MBTA v3 API (Historical Bus Arrival and Schedule Data)
-Bus arrival, route, and trip data will be collected using the [MBTA v3 API](https://api-v3.mbta.com/).
-- **Routes:** Route information (bus lines, route IDs, and names) will be retrieved from the [`/routes` endpoint](https://api-v3.mbta.com/docs/swagger/index.html#/Route/ApiWeb_RouteController_index).
-- **Trips:** Trip-level data representing individual bus runs will be obtained from the `/trips` endpoint.
-- **Schedules:** Scheduled arrival times for buses will be collected from the `/schedules` endpoint.
-- **Predictions:** Actual arrival times will be retrieved from the `/predictions` endpoint.
+### MBTA v3 API
+Bus schedule and prediction data are collected from the [MBTA v3 API](https://api-v3.mbta.com/).
 
-Bus delays will be computed by comparing actual arrival times with scheduled arrival times, where delay is defined as:  
-`delay = predicted arrival time − scheduled arrival time`
+| Endpoint | What it provides |
+|----------|-----------------|
+| `/routes` | Route IDs and names |
+| `/schedules` | Planned arrival times per stop |
+| `/predictions` | Real-time estimated arrival times |
 
-### 2. Weather Data (Historical Weather Conditions for Boston)
-Historical weather data will be obtained from [NOAA Climate Data Online (CDO)](https://www.ncdc.noaa.gov/cdo-web/).
-- The Daily Summaries (GHCN-Daily) dataset will be used to collect daily weather variables including maximum and minimum temperature, precipitation, and snowfall.
-- Weather observations will be retrieved in CSV format from the Boston Logan International Airport weather station (USW00014739) for the same date range as the MBTA bus data.
-- Weather data will be merged with bus arrival data based on the date to analyze the impact of weather conditions on bus delays.
+**Target routes:** 1, 15, 28, 39, 57 (high-traffic Boston corridors)
 
-*Note: The [OpenWeather API](https://openweathermap.org/api) is listed as an alternative data source if higher temporal resolution or supplementary weather attributes are required.*
+**Delay formula:** `delay = predicted_arrival − scheduled_arrival` (in minutes)
 
-### 3. Optional: Public Holiday Calendar Data
-Public holiday information for Massachusetts will be obtained from [Office Holidays](https://www.officeholidays.com/countries/usa/massachusetts).
-- Holiday dates will be used to create a binary holiday indicator feature.
-- This feature will help analyze whether public holidays are associated with increased or decreased bus delays compared to regular weekdays.
+### NOAA Weather Data
+Historical daily weather from [NOAA CDO API](https://www.ncdc.noaa.gov/cdo-web/).
+- **Station:** Boston Logan Airport (USW00014739)
+- **Variables:** TMAX, TMIN, PRCP (precipitation), SNOW, SNWD, AWND (wind speed)
+- Merged with MBTA data by service date.
 
 ---
 
-## Data Cleaning Plan
+## Data Cleaning
 
-We will document and implement these cleaning steps in code (not manual edits):
+All cleaning logic is in `src/clean_data.py` and applied programmatically (no manual edits).
 
-### MBTA Data Cleaning
-- **Filter missing keys:** Drop rows with missing required keys (route_id, stop_id, scheduled_time).
-- **Format datetime:** Resolve timestamp formats and time zones into a consistent `datetime`.
-- **Deduplication:** Remove duplicate events (same trip/stop timestamp) using a deterministic rule.
-- **Validate delays:**
-  - Keep early arrivals as negative delay (or optionally clamp at 0 for the “late” definition—decision will be documented).
-  - Flag extreme outliers (e.g., > 2 hours late) and decide whether to cap or exclude.
-
-### Weather Data Cleaning
-- **Handle missing NOAA fields with:**
-  - Simple imputation (median for that month) **or**
-  - “Missing flag” features to preserve missingness signal.
-
-### Merge Logic (Avoid Leakage)
-- Merge on service date for daily NOAA weather.
-- If hourly weather is used later, merge on the nearest prior timestamp (documented).
+| Step | Action |
+|------|--------|
+| Drop missing keys | Remove rows missing `route_id`, `trip_id`, `stop_id`, or arrival time |
+| Deduplication | Keep first occurrence per (trip, stop, date) |
+| Time parsing | Handle MBTA's 25:xx:xx format (trips past midnight) |
+| Outlier flagging | Flag rows with \|delay\| > 120 min (kept but marked) |
+| Weather imputation | Fill missing weather values with monthly median |
+| Temporal consistency | Merge weather by date only (no future data leakage) |
 
 ---
 
-## Feature Extraction Plan
+## Feature Extraction
 
-Planned features include:
-- Hour of day
-- Day of week
-- Weekend vs weekday
-- Temperature
-- Rainfall
-- Snow indicators
-- Route ID
-- Historical average delay for route
-- Binary holiday indicator (Optional)
+Features used in the model:
 
----
-
-## Modeling Plan (Preliminary)
-
-We plan to begin with:
-- Logistic Regression (baseline)
-
-Then experiment with:
-- Random Forest
-- Gradient Boosted Trees (GBDT)
+| Feature | Description |
+|---------|-------------|
+| `hour` | Hour of scheduled arrival (0–23) |
+| `day_of_week` | 0 = Monday … 6 = Sunday |
+| `is_weekend` | 1 if Saturday or Sunday |
+| `is_peak` | 1 if weekday 7–9 AM or 4–7 PM |
+| `route_encoded` | Numeric encoding of route ID |
+| `route_avg_delay` | Historical average delay for the route |
+| `is_rainy` | 1 if precipitation > 0.1 inches |
+| `is_snowy` | 1 if snowfall > 0.1 inches |
+| `TMAX` / `TMIN` | Daily high/low temperature (°F) |
+| `PRCP` | Daily precipitation (inches) |
+| `SNOW` | Daily snowfall (inches) |
+| `AWND` | Average wind speed (mph) |
 
 ---
 
-## Evaluation & Test Plan
+## Modeling
 
-### Data Splitting Strategy (Avoid Temporal Leakage)
-**Primary plan:** Train on earlier dates, test on later dates (time-based split). 
-- **Train:** First ~70–80% of timeline
-- **Validation:** Next ~10–15%
-- **Test:** Final ~10–15%
+Three classifiers are trained and compared in `src/train.py`:
 
-We will also sanity-check generalization by evaluating performance across:
-- Different routes
-- Peak vs. off-peak time windows
-- Weather vs. non-weather days
+1. **Logistic Regression** — baseline, interpretable
+2. **Random Forest** — captures non-linear interactions
+3. **Gradient Boosted Trees** — typically best performance
 
-### Metrics
-- **Accuracy** (for quick reference)
-- **Precision, Recall, F1** (delay is usually the minority class)
-- **ROC-AUC and/or PR-AUC**
-- **Confusion matrix** at a chosen threshold
+**Split strategy (time-based, no shuffle):**
+- Train: first 70% of data
+- Validation: next 15%
+- Test: final 15%
+
+**Metrics:** Accuracy, Precision, Recall, F1, ROC-AUC
+
+The best model (by validation F1) is saved to `data/processed/best_model.pkl`.
 
 ---
 
-## Visualization Plan
+## Results
 
-Planned visualizations include:
-- Delay frequency by hour of day
-- Delay frequency by route
-- Weather vs delay scatter plots
-- Feature importance plots
-- Confusion matrix and ROC/PR curves
+> *(Fill in after running the full pipeline)*
+
+| Model | Accuracy | F1 | ROC-AUC |
+|-------|----------|-----|---------|
+| Logistic Regression | — | — | — |
+| Random Forest | — | — | — |
+| Gradient Boosted Trees | — | — | — |
+
+**Key Findings:**
+- Top delay predictors: *(fill in from feature importance plot)*
+- Peak hours show higher delay rates
+- Rainy/snowy days correlate with increased delays
 
 ---
 
-## Timeline
+## Visualizations
 
-**Week 1: API Setup and Scoping**
-- Select specific high-traffic MBTA bus routes and define the historical date range to ensure a manageable but representative dataset.
-- Develop a Python wrapper for the MBTA v3 API, including local caching mechanisms to avoid hitting rate limits during iterative testing.
-- Extract route and trip metadata from the `/routes` and `/trips` endpoints and validate the data schema.
+All plots are saved to `data/processed/plots/` after running `make visualize`.
 
-**Week 2: Data Collection and Merging**
-- Write and execute automated scripts to fetch scheduled and actual arrival times from the `/schedules` and `/predictions` endpoints.
-- Calculate the primary target variable (delay in minutes) and save the initial raw and processed datasets.
-- Download NOAA GHCN-Daily weather data for Boston Logan Airport and build a prototype script to merge weather features with bus data based on service dates without introducing temporal leakage.
+| Plot | File |
+|------|------|
+| Delay rate by hour | `delay_by_hour.png` |
+| Delay rate by route | `delay_by_route.png` |
+| Delay vs precipitation | `delay_vs_precip.png` |
+| Confusion matrix | `confusion_matrix.png` |
+| Feature importances | `feature_importance.png` |
 
-**Week 3: Pipeline Hardening and EDA**
-- Formalize the data cleaning pipeline in code: drop invalid rows, standardize datetime formats, handle missing weather values, and apply deterministic rules to remove duplicates.
-- Address extreme outliers (e.g., buses >2 hours late) based on documented rules.
-- Conduct initial Exploratory Data Analysis (EDA) by generating plots to observe delay distributions across different hours of the day, days of the week, and routes.
+---
 
-**Week 4 (March Check-in Target): Baselines and Preliminary Review**
-- Train a baseline Logistic Regression model to establish a performance floor.
-- Evaluate the baseline model on the validation set using our defined classification metrics (Accuracy, Precision, Recall, F1).
-- Prepare for the March check-in by compiling preliminary EDA visualizations and documenting the end-to-end data collection and cleaning pipeline.
+## Testing
 
-**Week 5: Feature Engineering and Advanced Modeling**
-- Engineer more complex, predictive features: rolling average delay statistics, proxy measures for bus headways, and optimized encodings for categorical variables.
-- Begin experimenting with non-linear, tree-based models, specifically Random Forest and Gradient Boosted Trees (GBDT).
-- Outline and execute a hyperparameter tuning strategy for these advanced models.
+Tests cover the core data processing logic in `tests/test_pipeline.py`:
+- Time string parsing (including MBTA's >24-hour format)
+- Hour / weekday / peak-hour feature extraction
+- Rain and snow flag generation
+- Route encoding consistency
+- End-to-end delay computation from raw schedule + prediction records
 
-**Week 6: Deep Evaluation and Visual Interpretation**
-- Deepen model evaluation by conducting error analysis (e.g., analyzing false positives vs. false negatives).
-- Enhance project visualizations by generating feature importance charts to interpret which factors drive model decisions.
-- Plot Precision-Recall (PR) curves and confusion matrices optimized for our specific >5 minutes late threshold.
+```bash
+make test
+# or
+pytest tests/ -v
+```
 
-**Week 7 (April Check-in Target): Robustness and Selection**
-- Conduct robustness checks to ensure the model generalizes well across unseen routes, peak vs. off-peak hours, and extreme vs. mild weather days.
-- Select the final best-performing model for the April check-in.
-- Thoroughly document any identified limitations, edge cases, and areas where the model struggles to predict delays accurately.
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs these automatically on every push.
 
-**Week 8: Final Polish and Presentation**
-- Finalize the project repository and `README.md` to ensure full reproducibility (ensuring clean data-loading scripts, requirements, and instructions).
-- Polish all final figures, evaluation results, and interpretations for the final written report.
-- Prepare, practice, and record the required 10-minute final presentation, adding the video link to the repository README.
+---
+
+## Repository Structure
+
+```
+mbta-delay-prediction/
+├── src/
+│   ├── collect_mbta.py      # Download MBTA schedule + prediction data
+│   ├── collect_weather.py   # Download NOAA weather data
+│   ├── clean_data.py        # Merge, compute delays, clean data
+│   ├── features.py          # Feature engineering
+│   ├── train.py             # Model training + evaluation
+│   └── visualize.py         # Generate plots
+├── tests/
+│   └── test_pipeline.py     # Unit + integration tests
+├── data/
+│   ├── raw/                 # Raw downloaded data (git-ignored)
+│   └── processed/           # Cleaned data, features, model (git-ignored)
+├── .github/workflows/
+│   └── tests.yml            # CI: run tests on push
+├── .env.example             # API key template
+├── requirements.txt
+├── Makefile
+└── README.md
+```
+
+---
+
+## Environment
+
+- Python 3.9+
+- macOS, Linux, or Windows (WSL recommended on Windows)
+- All dependencies in `requirements.txt`
+
+---
+
+## How to Contribute
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Write tests for any new functionality
+4. Run `make test` to make sure everything passes
+5. Open a pull request
+
+---
+
+## Limitations
+
+- MBTA predictions API has limited historical depth; data collection should run continuously over weeks for a large dataset.
+- Weather is merged at daily granularity — hourly weather would improve accuracy.
+- Route-level average delay is computed globally (not per time period), which could leak mild signal; documented as a known limitation.
+- Model performance depends heavily on dataset size; results with < 1,000 rows may not generalize.
