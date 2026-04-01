@@ -135,7 +135,11 @@ def train_models():
     X_train_s, X_val_s, X_test_s, scaler = scale(X_train, X_val, X_test)
 
     models = {
-        "Logistic Regression (baseline)": LogisticRegression(max_iter=1000, random_state=42),
+        "Logistic Regression (baseline)": LogisticRegression(
+        max_iter=1000,
+        random_state=42,
+        class_weight="balanced"
+        ),
         "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1),
         "Gradient Boosted Trees": GradientBoostingClassifier(n_estimators=100, random_state=42),
     }
