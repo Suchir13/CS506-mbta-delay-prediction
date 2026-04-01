@@ -1,0 +1,4 @@
+model,f1
+Logistic Regression (baseline),0.504
+Random Forest,0.41
+Gradient Boosted Trees,0.342
