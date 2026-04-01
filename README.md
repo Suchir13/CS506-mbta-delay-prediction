@@ -22,7 +22,7 @@ Understanding delay patterns helps identify factors contributing to unreliable s
 ### 2. Clone and Install
 ```bash
 git clone https://github.com/Suchir13/CS506-mbta-delay-prediction.git
-cd mbta-delay-prediction
+cd CS506-mbta-delay-prediction
 pip install -r requirements.txt
 ```
 
