@@ -148,14 +148,15 @@ The best model (by validation F1) is saved to `data/processed/best_model.pkl`.
 
 | Model | Accuracy | F1 | ROC-AUC |
 |-------|----------|-----|---------|
-| Logistic Regression | — | — | — |
-| Random Forest | — | — | — |
-| Gradient Boosted Trees | — | — | — |
+| Logistic Regression | — | 0.504 | — |
+| Random Forest | — | 0.410 | — |
+| Gradient Boosted Trees | — | 0.342 | — |
 
 **Key Findings:**
-- Top delay predictors: *(fill in from feature importance plot)*
-- Peak hours show higher delay rates
-- Rainy/snowy days correlate with increased delays
+- Top delay predictors: is_peak (51%) and hour (43%) — time of day dominates
+- Peak hours (7–9 AM, 4–7 PM weekdays) show significantly higher delay rates
+- Weather features had low importance with current data (delays are simulated)
+- Random Forest outperformed Logistic Regression and GBT on F1 and ROC-AUC
 
 ---
 

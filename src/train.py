@@ -56,7 +56,7 @@ def time_split(df):
     """
     
     # Sort data chronologically (approximate using day_of_week and hour)
-    df = df.sort_values(by=["day_of_week", "hour"]).reset_index(drop=True)
+    # No sort — preserve original chronological collection order
 
     n = len(df)
     train_end = int(n * TRAIN_FRAC)
