@@ -151,6 +151,7 @@ def train_models():
     print("\n=== Validation Set Results ===")
     best_name, best_model, best_f1 = None, None, -1
 
+    results = []
     for name, model in models.items():
         # Logistic Regression benefits from scaling; tree models don't need it
         X_tr = X_train_s if "Logistic" in name else X_train
@@ -159,8 +160,14 @@ def train_models():
         model.fit(X_tr, y_train)
         f1 = evaluate(name, model, X_v, y_val)
 
+        results.append({"model": name, "f1": round(f1, 3)})
+
         if f1 > best_f1:
             best_f1, best_name, best_model = f1, name, model
+
+    results_df = pd.DataFrame(results)
+    results_df.to_csv("data/processed/model_results.csv", index=False)
+    print("\nSaved model results to data/processed/model_results.csv")
 
     print(f"\nBest model on validation set: {best_name} (F1={best_f1:.3f})")
 
