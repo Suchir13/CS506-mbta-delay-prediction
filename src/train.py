@@ -171,10 +171,40 @@ def train_models():
 
     print(f"\nBest model on validation set: {best_name} (F1={best_f1:.3f})")
 
+    # Save validation predictions using best model
+    X_v_best = X_val_s if "Logistic" in best_name else X_val
+    proba_val = best_model.predict_proba(X_v_best)[:, 1] if hasattr(best_model, "predict_proba") else None
+
+    threshold = 0.3
+    preds_val = (proba_val >= threshold).astype(int) if proba_val is not None else best_model.predict(X_v_best)
+
+    val_df = pd.DataFrame({
+        "y_true": y_val,
+        "y_pred": preds_val,
+        "y_proba": proba_val if proba_val is not None else np.nan
+    })
+
+    val_df.to_csv("data/processed/val_predictions.csv", index=False)
+    print("Saved validation predictions to data/processed/val_predictions.csv")
+
     # Final evaluation on held-out test set
     print("\n=== Test Set Results (best model) ===")
     X_t = X_test_s if "Logistic" in best_name else X_test
     evaluate(best_name, best_model, X_t, y_test)
+
+    # Save predictions for evaluation
+    proba = best_model.predict_proba(X_t)[:, 1] if hasattr(best_model, "predict_proba") else None
+    threshold = 0.3
+    preds = (proba >= threshold).astype(int) if proba is not None else best_model.predict(X_t)
+
+    pred_df = pd.DataFrame({
+        "y_true": y_test,
+        "y_pred": preds,
+        "y_proba": proba if proba is not None else np.nan
+    })
+
+    pred_df.to_csv("data/processed/test_predictions.csv", index=False)
+    print("\nSaved test predictions to data/processed/test_predictions.csv")
 
     # Feature importance (for tree-based models)
     feature_cols = [c for c in df.columns if c != "is_delayed"]
@@ -188,6 +218,15 @@ def train_models():
     with open(MODEL_OUT, "wb") as f:
         pickle.dump({"model": best_model, "scaler": scaler, "features": feature_cols}, f)
     print(f"\nSaved best model to {MODEL_OUT}")
+
+    split_info = {
+    "train_size": len(X_train),
+    "val_size": len(X_val),
+    "test_size": len(X_test)
+    }
+
+    pd.Series(split_info).to_csv("data/processed/split_info.csv")
+    print("Saved split info to data/processed/split_info.csv")
 
 
 if __name__ == "__main__":
