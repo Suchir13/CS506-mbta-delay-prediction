@@ -21,7 +21,7 @@ Understanding delay patterns helps identify factors contributing to unreliable s
 
 ### 2. Clone and Install
 ```bash
-git clone https://github.com/YOUR_USERNAME/mbta-delay-prediction.git
+git clone https://github.com/Suchir13/CS506-mbta-delay-prediction.git
 cd mbta-delay-prediction
 pip install -r requirements.txt
 ```
@@ -204,8 +204,8 @@ mbta-delay-prediction/
 ├── tests/
 │   └── test_pipeline.py     # Unit + integration tests
 ├── data/
-│   ├── raw/                 # Raw downloaded data (git-ignored)
-│   └── processed/           # Cleaned data, features, model (git-ignored)
+│   ├── raw/                 # Raw collected data (included for reproducibility)
+│   └── processed/           # Cleaned data, features, model, plots
 ├── .github/workflows/
 │   └── tests.yml            # CI: run tests on push
 ├── .env.example             # API key template
