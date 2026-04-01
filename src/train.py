@@ -36,8 +36,16 @@ VAL_FRAC = 0.15
 def load_features():
     if not os.path.exists(FEATURES_PATH):
         raise FileNotFoundError(f"{FEATURES_PATH} not found. Run features.py first.")
+    
     df = pd.read_csv(FEATURES_PATH)
-    print(f"Loaded feature matrix: {df.shape}")
+
+    print(f"\nLoaded feature matrix: {df.shape}")
+    print("\nColumns:")
+    print(df.columns.tolist())
+
+    print("\nTarget distribution (is_delayed):")
+    print(df["is_delayed"].value_counts())
+
     return df
 
 
