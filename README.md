@@ -18,38 +18,37 @@ Understanding delay patterns helps identify factors contributing to unreliable s
 ### 1. Prerequisites
 - Python 3.9 or newer
 - `pip`
-- A free [MBTA API key](https://api-v3.mbta.com/) (improves rate limits)
-- A free [NOAA CDO token](https://www.ncdc.noaa.gov/cdo-web/token) (required for weather data)
 
 ### 2. Clone and Install
 ```bash
 git clone https://github.com/YOUR_USERNAME/mbta-delay-prediction.git
 cd mbta-delay-prediction
-make install
+pip install -r requirements.txt
 ```
 
-### 3. Set Up API Keys
+### 3. Run the Full Pipeline
+Data is already included in the repo — no API keys needed to reproduce results.
 ```bash
-cp .env.example .env
-# Open .env and fill in your MBTA_API_KEY and NOAA_TOKEN
+python src/clean_data.py
+python src/features.py
+python src/train.py
+python src/visualize.py
 ```
 
-### 4. Run the Full Pipeline
+### 4. Run Tests
 ```bash
-make all
-```
-Or run each step individually:
-```bash
-make collect     # Download MBTA + weather data → data/raw/
-make clean       # Merge, compute delays, clean → data/processed/clean.csv
-make features    # Engineer features → data/processed/features.csv
-make train       # Train models, print metrics → data/processed/best_model.pkl
-make visualize   # Generate all plots → data/processed/plots/
+pytest tests/ -v
 ```
 
-### 5. Run Tests
+### 5. (Optional) Re-collect fresh data
+Only needed if you want to download new MBTA/weather data:
 ```bash
-make test
+# Get free keys first:
+# MBTA: https://api-v3.mbta.com/
+# NOAA: https://www.ncdc.noaa.gov/cdo-web/token
+cp .env.example .env  # then fill in your keys
+python src/collect_mbta.py
+python src/collect_weather.py
 ```
 
 ---
