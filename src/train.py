@@ -54,6 +54,10 @@ def time_split(df):
     Split data in chronological order (no shuffle!) to avoid temporal leakage.
     Returns (X_train, y_train, X_val, y_val, X_test, y_test).
     """
+    
+    # Sort data chronologically (approximate using day_of_week and hour)
+    df = df.sort_values(by=["day_of_week", "hour"]).reset_index(drop=True)
+    
     n = len(df)
     train_end = int(n * TRAIN_FRAC)
     val_end = int(n * (TRAIN_FRAC + VAL_FRAC))
