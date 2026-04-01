@@ -57,7 +57,7 @@ def time_split(df):
     
     # Sort data chronologically (approximate using day_of_week and hour)
     df = df.sort_values(by=["day_of_week", "hour"]).reset_index(drop=True)
-    
+
     n = len(df)
     train_end = int(n * TRAIN_FRAC)
     val_end = int(n * (TRAIN_FRAC + VAL_FRAC))
@@ -85,6 +85,11 @@ def time_split(df):
     X_train, y_train = X[:train_end], y[:train_end]
     X_val, y_val = X[train_end:val_end], y[train_end:val_end]
     X_test, y_test = X[val_end:], y[val_end:]
+
+    print("\n=== Split Verification ===")
+    print(f"Train indices: 0 → {train_end}")
+    print(f"Val indices: {train_end} → {val_end}")
+    print(f"Test indices: {val_end} → {n}")
 
     print(f"Train: {len(X_train)} | Val: {len(X_val)} | Test: {len(X_test)}")
     return X_train, y_train, X_val, y_val, X_test, y_test
