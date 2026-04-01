@@ -10,6 +10,9 @@ from sklearn.metrics import (
 )
 from sklearn.metrics import roc_curve
 import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_curve
+import os
+
 
 TEST_PATH = "data/processed/test_predictions.csv"
 VAL_PATH = "data/processed/val_predictions.csv"
@@ -71,6 +74,24 @@ def plot_roc(df, name="Dataset"):
     plt.title(f"ROC Curve - {name}")
     plt.show()
 
+def plot_pr(df, name="Dataset"):
+    y_true = df["y_true"]
+    y_proba = df["y_proba"]
+
+    precision, recall, _ = precision_recall_curve(y_true, y_proba)
+
+    os.makedirs("data/processed/plots", exist_ok=True)
+
+    plt.figure()
+    plt.plot(recall, precision)
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title(f"PR Curve - {name}")
+    plt.savefig(f"data/processed/plots/pr_curve_{name.lower()}.png")
+    plt.close()
+
+    print(f"Saved PR curve → data/processed/plots/pr_curve_{name.lower()}.png")
+
 if __name__ == "__main__":
     print("=== Loading Predictions ===\n")
     test_df, val_df = load_predictions()
@@ -81,5 +102,7 @@ if __name__ == "__main__":
     compute_metrics(test_df, "Test")
     compute_confusion(test_df, "Test")
     plot_roc(test_df, "Test")
+    plot_pr(val_df, "Validation")
+    plot_pr(test_df, "Test")
 
     print("\nDone!")
