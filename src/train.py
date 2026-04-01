@@ -59,7 +59,21 @@ def time_split(df):
     val_end = int(n * (TRAIN_FRAC + VAL_FRAC))
 
     target = "is_delayed"
-    feature_cols = [c for c in df.columns if c != target]
+    feature_cols = [
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "is_peak",
+    "route_encoded",
+    "route_avg_delay",
+    "is_rainy",
+    "is_snowy",
+    "TMAX",
+    "TMIN",
+    "PRCP",
+    "SNOW",
+    "AWND",
+]
 
     X = df[feature_cols].values
     y = df[target].values
