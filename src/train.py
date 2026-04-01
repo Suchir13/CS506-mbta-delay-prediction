@@ -106,8 +106,12 @@ def scale(X_train, X_val, X_test):
 
 def evaluate(name, model, X, y):
     """Print classification metrics for a fitted model."""
-    preds = model.predict(X)
     proba = model.predict_proba(X)[:, 1] if hasattr(model, "predict_proba") else None
+
+    # Use custom threshold instead of default 0.5
+    threshold = 0.3
+    preds = (proba >= threshold).astype(int) if proba is not None else model.predict(X)
+    
 
     acc = accuracy_score(y, preds)
     prec = precision_score(y, preds, zero_division=0)
