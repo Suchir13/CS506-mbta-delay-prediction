@@ -143,13 +143,11 @@ The best model (by validation F1) is saved to `data/processed/best_model.pkl`.
 
 ## Results
 
-> *(Fill in after running the full pipeline)*
-
 | Model | Accuracy | F1 | ROC-AUC |
 |-------|----------|-----|---------|
-| Logistic Regression | — | 0.504 | — |
-| Random Forest | — | 0.410 | — |
-| Gradient Boosted Trees | — | 0.342 | — |
+| Logistic Regression (baseline) | 0.322 | 0.487 | 0.630 |
+| **Random Forest (best)** | **0.675** | **0.544** | **0.657** |
+| Gradient Boosted Trees | 0.670 | 0.525 | 0.642 |
 
 **Key Findings:**
 - Top delay predictors: is_peak (51%) and hour (43%) — time of day dominates
