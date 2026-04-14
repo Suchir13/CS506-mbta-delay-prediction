@@ -7,7 +7,7 @@
 
 ## Project Description
 
-Public transportation reliability is critical for daily commuters in Boston. This project predicts whether an MBTA bus will arrive **more than 5 minutes late** using historical bus schedule/prediction data combined with Boston weather conditions and time-based features.
+Public transportation reliability is critical for daily commuters in Boston. This project predicts whether an MBTA bus will arrive **more than 5 minutes late** using real historical bus travel-time data combined with Boston weather conditions and time-based features.
 
 Understanding delay patterns helps identify factors contributing to unreliable service and provides insights for transit optimization.
 
@@ -40,15 +40,20 @@ python src/visualize.py
 pytest tests/ -v
 ```
 
-### 5. (Optional) Re-collect fresh data
-Only needed if you want to download new MBTA/weather data:
+### 5. (Optional) Deep Evaluation
+Generates additional metrics, ROC/PR curves, and per-route/per-hour performance slices:
 ```bash
-# Get free keys first:
-# MBTA: https://api-v3.mbta.com/
-# NOAA: https://www.ncdc.noaa.gov/cdo-web/token
-cp .env.example .env  # then fill in your keys
-python src/collect_mbta.py
-python src/collect_weather.py
+python src/evaluate.py
+```
+
+### 6. (Optional) Re-collect fresh data
+Only needed if you want to download new data — **no API keys required**:
+```bash
+# Re-collect MBTA travel times from TransitMatters (free, no auth)
+python src/collect_transitmatters.py --start 2025-01-01 --end 2025-10-31
+
+# Re-collect Boston weather from Open-Meteo (free, no auth)
+python src/collect_weather.py --start 2025-01-01 --end 2025-10-31
 ```
 
 ---
@@ -65,23 +70,39 @@ python src/collect_weather.py
 
 ## Data Collection
 
-### MBTA v3 API
-Bus schedule and prediction data are collected from the [MBTA v3 API](https://api-v3.mbta.com/).
+### MBTA Travel Time Data — TransitMatters API
+Real historical bus travel-time data is collected from the [TransitMatters Dashboard API](https://dashboard-api.labs.transitmatters.org) — a free, publicly available archive of MBTA GTFS-RT data. No API key is required.
 
-| Endpoint | What it provides |
-|----------|-----------------|
-| `/routes` | Route IDs and names |
-| `/schedules` | Planned arrival times per stop |
-| `/predictions` | Real-time estimated arrival times |
+| Field | What it provides |
+|-------|-----------------|
+| `travel_time_sec` | Actual travel time for each trip (seconds) |
+| `benchmark_travel_time_sec` | Scheduled/expected travel time (seconds) |
+| `dep_dt` | Departure datetime |
+
+**Delay formula:** `delay_minutes = (actual − benchmark) / 60`  
+**Target variable:** `is_delayed = 1` if `delay_minutes > 5`, else `0`
 
 **Target routes:** 1, 15, 28, 39, 57 (high-traffic Boston corridors)
 
-**Delay formula:** `delay = predicted_arrival − scheduled_arrival` (in minutes)
+| Route | Segment |
+|-------|---------|
+| 1 | Harvard → Nubian |
+| 15 | Uphams Corner → Ruggles |
+| 28 | Mattapan → Nubian |
+| 39 | Forest Hills → Back Bay |
+| 57 | Watertown → Kenmore |
 
-### NOAA Weather Data
-Historical daily weather from [NOAA CDO API](https://www.ncdc.noaa.gov/cdo-web/).
-- **Station:** Boston Logan Airport (USW00014739)
-- **Variables:** TMAX, TMIN, PRCP (precipitation), SNOW, SNWD, AWND (wind speed)
+**Dataset:** 131,753 trip records, January 2025 – October 2025
+
+> **Why TransitMatters instead of the MBTA API?**  
+> The MBTA v3 `/predictions` endpoint is real-time only — once a bus passes a stop, the prediction is gone. TransitMatters archives MBTA GTFS-RT data and exposes it via a free historical API.
+
+### Boston Weather Data — Open-Meteo
+Historical daily weather is collected from [Open-Meteo](https://archive-api.open-meteo.com/v1/archive). No API key required.
+
+- **Location:** Boston (42.3601 N, 71.0589 W)
+- **Variables:** TMAX, TMIN, PRCP (precipitation), SNOW, AWND (wind speed)
+- **Units:** °F, inches, mph
 - Merged with MBTA data by service date.
 
 ---
@@ -96,14 +117,13 @@ All cleaning logic is in `src/clean_data.py` and applied programmatically (no ma
 | Deduplication | Keep first occurrence per (trip, stop, date) |
 | Time parsing | Handle MBTA's 25:xx:xx format (trips past midnight) |
 | Outlier flagging | Flag rows with \|delay\| > 120 min (kept but marked) |
-| Weather imputation | Fill missing weather values with monthly median |
-| Temporal consistency | Merge weather by date only (no future data leakage) |
+| Weather merge | Join on service date — no future data leakage |
 
 ---
 
 ## Feature Extraction
 
-Features used in the model:
+Features used in the model (12 total):
 
 | Feature | Description |
 |---------|-------------|
@@ -112,13 +132,14 @@ Features used in the model:
 | `is_weekend` | 1 if Saturday or Sunday |
 | `is_peak` | 1 if weekday 7–9 AM or 4–7 PM |
 | `route_encoded` | Numeric encoding of route ID |
-| `route_avg_delay` | Historical average delay for the route |
 | `is_rainy` | 1 if precipitation > 0.1 inches |
 | `is_snowy` | 1 if snowfall > 0.1 inches |
 | `TMAX` / `TMIN` | Daily high/low temperature (°F) |
 | `PRCP` | Daily precipitation (inches) |
 | `SNOW` | Daily snowfall (inches) |
 | `AWND` | Average wind speed (mph) |
+
+> **Note:** `route_avg_delay` was excluded from the model — computing it on the full dataset before splitting introduces data leakage (the feature "knows" about the test set).
 
 ---
 
@@ -130,10 +151,16 @@ Three classifiers are trained and compared in `src/train.py`:
 2. **Random Forest** — captures non-linear interactions
 3. **Gradient Boosted Trees** — typically best performance
 
-**Split strategy (time-based, no shuffle):**
+**Split strategy (time-based, no shuffle — preserves chronological order to avoid temporal leakage):**
 - Train: first 70% of data
 - Validation: next 15%
 - Test: final 15%
+
+**Class imbalance handling:**
+- Logistic Regression and Random Forest: `class_weight="balanced"`
+- Gradient Boosted Trees: `compute_sample_weight("balanced")` passed at fit time
+
+**Threshold tuning:** For each model, thresholds from 0.10 to 0.90 are swept on the validation set and the threshold maximising F1 is selected.
 
 **Metrics:** Accuracy, Precision, Recall, F1, ROC-AUC
 
@@ -143,23 +170,32 @@ The best model (by validation F1) is saved to `data/processed/best_model.pkl`.
 
 ## Results
 
-| Model | Accuracy | F1 | ROC-AUC |
-|-------|----------|-----|---------|
-| Logistic Regression (baseline) | 0.322 | 0.487 | 0.630 |
-| **Random Forest (best)** | **0.675** | **0.544** | **0.657** |
-| Gradient Boosted Trees | 0.670 | 0.525 | 0.642 |
+### Validation Set
+
+| Model | Val F1 | Threshold |
+|-------|--------|-----------|
+| Logistic Regression (baseline) | 0.405 | 0.42 |
+| Random Forest | 0.416 | 0.23 |
+| **Gradient Boosted Trees (best)** | **0.427** | **0.64** |
+
+### Test Set (best model: Gradient Boosted Trees)
+
+| Metric | Score |
+|--------|-------|
+| F1 | 0.215 |
+| ROC-AUC | 0.550 |
 
 **Key Findings:**
-- Top delay predictors: is_peak (51%) and hour (43%) — time of day dominates
+- Time-of-day features (`hour`, `is_peak`) are the strongest delay predictors
 - Peak hours (7–9 AM, 4–7 PM weekdays) show significantly higher delay rates
-- Weather features had low importance with current data (delays are simulated)
-- Random Forest outperformed Logistic Regression and GBT on F1 and ROC-AUC
+- Weather features provide marginal additional signal
+- The validation–test F1 gap (~0.21) reflects seasonal threshold shift — the model was tuned on a summer/fall validation window and tested on a later fall window with a different delay distribution
 
 ---
 
 ## Visualizations
 
-All plots are saved to `data/processed/plots/` after running `make visualize`.
+All plots are saved to `data/processed/plots/` after running `python src/visualize.py`.
 
 | Plot | File |
 |------|------|
@@ -178,15 +214,11 @@ Tests cover the core data processing logic in `tests/test_pipeline.py`:
 - Hour / weekday / peak-hour feature extraction
 - Rain and snow flag generation
 - Route encoding consistency
-- End-to-end delay computation from raw schedule + prediction records
+- End-to-end delay label correctness
 
 ```bash
-make test
-# or
 pytest tests/ -v
 ```
-
-A GitHub Actions workflow (`.github/workflows/tests.yml`) runs these automatically on every push.
 
 ---
 
@@ -195,24 +227,46 @@ A GitHub Actions workflow (`.github/workflows/tests.yml`) runs these automatical
 ```
 mbta-delay-prediction/
 ├── src/
-│   ├── collect_mbta.py      # Download MBTA schedule + prediction data
-│   ├── collect_weather.py   # Download NOAA weather data
-│   ├── clean_data.py        # Merge, compute delays, clean data
-│   ├── features.py          # Feature engineering
-│   ├── train.py             # Model training + evaluation
-│   └── visualize.py         # Generate plots
+│   ├── collect_transitmatters.py   # Download real MBTA data from TransitMatters API
+│   ├── collect_weather.py          # Download Boston weather from Open-Meteo
+│   ├── clean_data.py               # Merge, compute delays, clean data
+│   ├── features.py                 # Feature engineering
+│   ├── train.py                    # Model training + evaluation
+│   ├── evaluate.py                 # Deep evaluation (ROC/PR curves, slicing)
+│   └── visualize.py                # Generate plots
 ├── tests/
-│   └── test_pipeline.py     # Unit + integration tests
+│   └── test_pipeline.py            # Unit + integration tests
 ├── data/
-│   ├── raw/                 # Raw collected data (included for reproducibility)
-│   └── processed/           # Cleaned data, features, model, plots
-├── .github/workflows/
-│   └── tests.yml            # CI: run tests on push
-├── .env.example             # API key template
+│   ├── raw/
+│   │   ├── travel_times.csv        # 131,753 trip records (Jan–Oct 2025)
+│   │   └── weather.csv             # Daily Boston weather (Jan–Oct 2025)
+│   └── processed/
+│       ├── clean.csv               # Cleaned and merged data
+│       ├── features.csv            # Feature matrix
+│       ├── model_results.csv       # Validation F1 per model
+│       ├── best_model.pkl          # Saved model + scaler
+│       ├── val_predictions.csv     # Best model validation predictions
+│       ├── test_predictions.csv    # Best model test predictions
+│       └── plots/                  # Generated visualizations
+├── Project_Description.md
 ├── requirements.txt
-├── Makefile
 └── README.md
 ```
+
+---
+
+## Progress Against Project Timeline
+
+| Week | Goal | Status |
+|------|------|--------|
+| 1 | API setup, route/trip metadata extraction | ✅ Complete |
+| 2 | Data collection, delay computation, weather merge | ✅ Complete (TransitMatters + Open-Meteo) |
+| 3 | Pipeline hardening, EDA, outlier handling | ✅ Complete |
+| 4 | Baseline Logistic Regression, March check-in | ✅ Complete |
+| 5 | Feature engineering, Random Forest, GBT | ✅ Complete |
+| 6 | Error analysis, feature importance plots, PR/ROC curves | ✅ Complete |
+| 7 | Robustness checks, model selection, documentation | 🔄 In progress |
+| 8 | Final polish, report, 10-min presentation video | ⬜ Pending |
 
 ---
 
@@ -224,19 +278,10 @@ mbta-delay-prediction/
 
 ---
 
-## How to Contribute
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Write tests for any new functionality
-4. Run `make test` to make sure everything passes
-5. Open a pull request
-
----
-
 ## Limitations
 
-- MBTA predictions API has limited historical depth; data collection should run continuously over weeks for a large dataset.
+- Data covers January–October 2025 only; Routes 1, 15, 39, 57 drop off in the TransitMatters archive after October 2025.
 - Weather is merged at daily granularity — hourly weather would improve accuracy.
-- Route-level average delay is computed globally (not per time period), which could leak mild signal; documented as a known limitation.
-- Model performance depends heavily on dataset size; results with < 1,000 rows may not generalize.
+- Only one stop-pair per route is tracked (inbound main segment); delays at other stops or on outbound trips are not captured.
+- The validation–test F1 gap suggests the tuned threshold does not generalize perfectly across seasons; a rolling or cross-validated threshold would help.
+- Model performance is limited by the 12 available features; vehicle headway and real-time crowding data would likely improve prediction.

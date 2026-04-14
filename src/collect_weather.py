@@ -1,118 +1,91 @@
 """
 collect_weather.py
 ------------------
-Downloads historical daily weather data for Boston from the NOAA CDO API.
-Saves raw weather data to data/raw/weather.csv.
+Downloads historical daily weather data for Boston from Open-Meteo.
+No API key required.
 
-Weather station: Boston Logan Airport (USW00014739)
+Weather location: Boston (42.3601 N, 71.0589 W)
 Run: python src/collect_weather.py
 """
 
 import os
-import time
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
 
-load_dotenv()
+LATITUDE  = 42.3601
+LONGITUDE = -71.0589
+OUTPUT    = "data/raw/weather.csv"
 
-NOAA_TOKEN = os.getenv("NOAA_TOKEN", "")
-BASE_URL = "https://www.ncdc.noaa.gov/cdo-web/api/v2"
-
-# Boston Logan Airport station ID
-STATION_ID = "GHCND:USW00014739"
-
-# Match MBTA data range (past 30 days for more weather context)
-DAYS_BACK = 30
-
-# Weather data types we want
-DATA_TYPES = "TMAX,TMIN,PRCP,SNOW,SNWD,AWND"
+# Match the travel time data range collected from TransitMatters
+START_DATE = "2024-01-01"
+END_DATE   = "2025-03-31"
 
 
-def fetch_weather(start_date, end_date):
-    """
-    Call NOAA CDO API for daily weather summaries.
-    start_date / end_date: 'YYYY-MM-DD' strings.
-    Returns a DataFrame of weather observations.
-    """
-    if not NOAA_TOKEN:
-        print("WARNING: No NOAA_TOKEN found in .env — skipping weather download.")
-        print("Get a free token at: https://www.ncdc.noaa.gov/cdo-web/token")
-        return pd.DataFrame()
-
-    headers = {"token": NOAA_TOKEN}
-    params = {
-        "datasetid": "GHCND",
-        "stationid": STATION_ID,
-        "startdate": start_date,
-        "enddate": end_date,
-        "datatypeid": DATA_TYPES,
-        "limit": 1000,
-        "units": "standard",  # Fahrenheit and inches
-    }
-
-    print(f"Fetching weather data from {start_date} to {end_date}...")
-    try:
-        response = requests.get(
-            f"{BASE_URL}/data",
-            headers=headers,
-            params=params,
-            timeout=30,
-        )
-        response.raise_for_status()
-        results = response.json().get("results", [])
-        print(f"  Got {len(results)} weather records.")
-        return pd.DataFrame(results)
-    except requests.RequestException as e:
-        print(f"  NOAA API error: {e}")
-        return pd.DataFrame()
-
-
-def reshape_weather(df_raw):
-    """
-    NOAA returns one row per (date, datatype). Pivot so each date is one row
-    with columns: TMAX, TMIN, PRCP, SNOW, SNWD, AWND.
-    """
-    if df_raw.empty:
-        return df_raw
-
-    # Each row has: date, datatype, value
-    df_pivot = df_raw.pivot_table(
-        index="date", columns="datatype", values="value", aggfunc="mean"
-    ).reset_index()
-
-    df_pivot.columns.name = None  # Remove 'datatype' label from column axis
-    df_pivot["date"] = pd.to_datetime(df_pivot["date"]).dt.date.astype(str)
-
-    return df_pivot
-
-
-def collect_weather():
-    """Main function to collect and save weather data."""
-    os.makedirs("data/raw", exist_ok=True)
-
-    end_date = datetime.today()
-    start_date = end_date - timedelta(days=DAYS_BACK)
-
-    df_raw = fetch_weather(
-        start_date.strftime("%Y-%m-%d"),
-        end_date.strftime("%Y-%m-%d"),
+def fetch_weather(start_date: str, end_date: str) -> pd.DataFrame:
+    print(f"Fetching Boston weather from Open-Meteo ({start_date} to {end_date})...")
+    resp = requests.get(
+        "https://archive-api.open-meteo.com/v1/archive",
+        params={
+            "latitude":           LATITUDE,
+            "longitude":          LONGITUDE,
+            "start_date":         start_date,
+            "end_date":           end_date,
+            "daily":              ",".join([
+                "temperature_2m_max",
+                "temperature_2m_min",
+                "precipitation_sum",
+                "snowfall_sum",
+                "wind_speed_10m_max",
+            ]),
+            "temperature_unit":   "fahrenheit",
+            "precipitation_unit": "inch",
+            "wind_speed_unit":    "mph",
+            "timezone":           "America/New_York",
+        },
+        timeout=30,
     )
+    resp.raise_for_status()
+    daily = resp.json()["daily"]
 
-    if df_raw.empty:
-        # Create a placeholder so downstream code doesn't crash
-        print("Creating empty weather placeholder...")
-        df_placeholder = pd.DataFrame(columns=["date", "TMAX", "TMIN", "PRCP", "SNOW", "SNWD", "AWND"])
-        df_placeholder.to_csv("data/raw/weather.csv", index=False)
-        return
+    df = pd.DataFrame({
+        "date": daily["time"],
+        "TMAX": daily["temperature_2m_max"],
+        "TMIN": daily["temperature_2m_min"],
+        "PRCP": daily["precipitation_sum"],
+        "SNOW": daily["snowfall_sum"],
+        "AWND": daily["wind_speed_10m_max"],
+    })
+    print(f"  Got {len(df)} days of weather data.")
+    return df
 
-    df_weather = reshape_weather(df_raw)
-    df_weather.to_csv("data/raw/weather.csv", index=False)
-    print(f"Saved {len(df_weather)} days of weather data to data/raw/weather.csv")
+
+def collect_weather(start: str = START_DATE, end: str = END_DATE, append: bool = False):
+    os.makedirs("data/raw", exist_ok=True)
+    df_new = fetch_weather(start, end)
+
+    if append and os.path.exists(OUTPUT):
+        df_existing = pd.read_csv(OUTPUT)
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+        df_combined.drop_duplicates(subset=["date"], inplace=True)
+        df_combined.sort_values("date", inplace=True)
+        df_combined.to_csv(OUTPUT, index=False)
+        print(f"Appended -> {OUTPUT}  (total: {len(df_combined)} days)")
+        print(f"Full date range: {df_combined['date'].min()} -> {df_combined['date'].max()}")
+    else:
+        df_new.to_csv(OUTPUT, index=False)
+        print(f"Saved {len(df_new)} days to {OUTPUT}")
+        print(f"Date range: {df_new['date'].min()} -> {df_new['date'].max()}")
 
 
 if __name__ == "__main__":
-    print("=== Collecting Boston Weather Data ===\n")
-    collect_weather()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start",  default=START_DATE)
+    parser.add_argument("--end",    default=END_DATE)
+    parser.add_argument("--append", action="store_true",
+                        help="Append to existing weather.csv instead of overwriting")
+    args = parser.parse_args()
+
+    print("=== Collecting Boston Weather Data (Open-Meteo) ===\n")
+    collect_weather(args.start, args.end, args.append)
     print("\nDone!")

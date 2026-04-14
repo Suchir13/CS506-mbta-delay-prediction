@@ -14,7 +14,7 @@ import os
 # Make src/ importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from clean_data import parse_time_to_seconds, add_time_features, merge_mbta
+from clean_data import parse_time_to_seconds, add_time_features, clean_mbta
 from features import add_rain_snow_flags, encode_route
 
 
@@ -108,29 +108,21 @@ def test_encode_route():
     assert result.loc[0, "route_encoded"] != result.loc[1, "route_encoded"]
 
 
-# ─── Integration: delay computation ──────────────────────────────────────────
+# ─── Integration: clean_mbta pipeline ────────────────────────────────────────
 
-def test_delay_computation():
-    """End-to-end: merge schedules & predictions → correct delay_minutes."""
-    df_sched = pd.DataFrame({
-        "route_id": ["1"],
-        "trip_id": ["t1"],
-        "stop_id": ["s1"],
-        "date": ["2024-03-04"],
-        "stop_sequence": [1],
-        "scheduled_arrival": ["08:00:00"],
-        "scheduled_departure": ["08:01:00"],
+def test_clean_mbta_delay_and_target():
+    """clean_mbta should preserve delay_minutes and set is_delayed correctly."""
+    df = pd.DataFrame({
+        "route_id": ["1", "28"],
+        "trip_id": ["t1", "t2"],
+        "stop_id": ["s1", "s2"],
+        "date": ["2024-03-04", "2024-03-09"],
+        "stop_sequence": [1, 1],
+        "scheduled_arrival": ["08:00:00", "10:00:00"],
+        "delay_minutes": [7.0, 2.0],   # 7 min late → delayed; 2 min → not delayed
+        "is_delayed": [1, 0],
     })
-    df_pred = pd.DataFrame({
-        "route_id": ["1"],
-        "trip_id": ["t1"],
-        "stop_id": ["s1"],
-        "date": ["2024-03-04"],
-        "predicted_arrival": ["08:07:00"],  # 7 minutes late
-        "predicted_departure": ["08:08:00"],
-        "status": [None],
-    })
-    result = merge_mbta(df_sched, df_pred)
-    assert len(result) == 1
-    assert abs(result.loc[0, "delay_minutes"] - 7.0) < 0.01
-    assert result.loc[0, "is_delayed"] == 1  # > 5 min threshold
+    result = clean_mbta(df)
+    assert len(result) == 2
+    assert result.loc[result["delay_minutes"] == 7.0, "is_delayed"].values[0] == 1
+    assert result.loc[result["delay_minutes"] == 2.0, "is_delayed"].values[0] == 0
