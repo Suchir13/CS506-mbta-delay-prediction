@@ -14,7 +14,7 @@ Run: python src/visualize.py
 """
 
 import os
-import pickle
+import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -190,8 +190,7 @@ def make_plots():
     # Load best model
     model_bundle = None
     if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            model_bundle = pickle.load(f)
+        model_bundle = joblib.load(MODEL_PATH)
 
     # Load clean data for EDA plots
     df_clean = None

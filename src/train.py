@@ -13,7 +13,7 @@ Run: python src/train.py
 """
 
 import os
-import pickle
+import joblib
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -30,6 +30,11 @@ MODEL_OUT = "data/processed/best_model.pkl"
 
 TRAIN_FRAC = 0.70
 VAL_FRAC   = 0.15
+RF_N_ESTIMATORS = 30
+RF_MAX_DEPTH = 16
+RF_MIN_SAMPLES_SPLIT = 100
+RF_MIN_SAMPLES_LEAF = 50
+RF_MAX_FEATURES = "sqrt"
 
 FEATURE_COLS = [
     "hour", "day_of_week", "is_weekend", "is_peak",
@@ -140,15 +145,22 @@ def train_models():
     sample_weights = compute_sample_weight("balanced", y_train)
 
     models = {
-        "Logistic Regression (baseline)": LogisticRegression(
-            max_iter=1000, random_state=42, class_weight="balanced"
-        ),
+        # "Logistic Regression (baseline)": LogisticRegression(
+        #     max_iter=1000, random_state=42, class_weight="balanced"
+        # ),
         "Random Forest": RandomForestClassifier(
-            n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced"
+            n_estimators=RF_N_ESTIMATORS,
+            max_depth=RF_MAX_DEPTH,
+            min_samples_split=RF_MIN_SAMPLES_SPLIT,
+            min_samples_leaf=RF_MIN_SAMPLES_LEAF,
+            max_features=RF_MAX_FEATURES,
+            random_state=42,
+            n_jobs=-1,
+            class_weight="balanced",
         ),
-        "Gradient Boosted Trees": GradientBoostingClassifier(
-            n_estimators=100, random_state=42
-        ),
+        # "Gradient Boosted Trees": GradientBoostingClassifier(
+        #     n_estimators=100, random_state=42
+        # ),
     }
 
     print("\n=== Validation Set Results ===")
@@ -216,9 +228,12 @@ def train_models():
 
     # Save best model + scaler
     os.makedirs("data/processed", exist_ok=True)
-    with open(MODEL_OUT, "wb") as f:
-        pickle.dump({"model": best_model, "scaler": scaler, "features": FEATURE_COLS}, f)
-    print(f"\nSaved best model to {MODEL_OUT}")
+    joblib.dump(
+        {"model": best_model, "scaler": scaler, "features": FEATURE_COLS},
+        MODEL_OUT,
+        compress=3,
+    )
+    print(f"\nSaved compressed best model to {MODEL_OUT}")
 
     split_info = {
     "train_size": len(X_train),
