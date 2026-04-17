@@ -35,6 +35,16 @@ python src/train.py
 python src/visualize.py
 ```
 
+> **Official MBTA arrival/departure dataset option:**  
+> Historical bus arrival/departure files can also be downloaded from the MassGIS/MBTA dataset page:  
+> https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about  
+> Place the monthly CSV files in `data/raw/arrival_departure/` and run:
+> ```bash
+> python src/clean_data.py --source official --dataset-dir data/raw/arrival_departure
+> python src/features.py
+> ```
+> The current official-data cleaning path defaults to the **most recent month** for faster local regeneration.
+
 ### 4. Run Tests
 ```bash
 pytest tests/ -v
@@ -69,6 +79,23 @@ python src/collect_weather.py --start 2025-01-01 --end 2025-10-31
 ---
 
 ## Data Collection
+
+### Official MBTA Bus Arrival/Departure Dataset (MassGIS / MBTA)
+An official historical MBTA bus arrival/departure dataset is also supported.
+It provides richer event-level schedule vs. actual timing information than the simplified API-derived delay table, including route direction, timepoint order, point type, and schedule/headway fields.
+
+Download source:
+https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
+
+Place the downloaded monthly CSV files in:
+`data/raw/arrival_departure/`
+
+Recent pipeline updates added:
+- official dataset support in `clean_data.py`
+- a source toggle for TransitMatters vs official files
+- a latest-month fast-load option for local runs
+- route-id handling fixes in `features.py`
+- safer plotting behavior in `visualize.py`
 
 ### MBTA Travel Time Data — TransitMatters API
 Real historical bus travel-time data is collected from the [TransitMatters Dashboard API](https://dashboard-api.labs.transitmatters.org) — a free, publicly available archive of MBTA GTFS-RT data. No API key is required.

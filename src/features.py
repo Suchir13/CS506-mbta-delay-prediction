@@ -19,7 +19,10 @@ OUT_PATH = "data/processed/features.csv"
 def load_clean():
     if not os.path.exists(CLEAN_PATH):
         raise FileNotFoundError(f"{CLEAN_PATH} not found. Run clean_data.py first.")
-    df = pd.read_csv(CLEAN_PATH)
+    df = pd.read_csv(CLEAN_PATH, dtype={"route_id": str}, low_memory=False)
+    df = df.copy()
+    if "route_id" in df.columns:
+        df.loc[:, "route_id"] = df["route_id"].astype(str).str.strip()
     print(f"Loaded {len(df)} rows from clean dataset.")
     return df
 
@@ -38,15 +41,17 @@ def add_route_avg_delay(df):
 
 def add_rain_snow_flags(df):
     """Create binary flags for rainy and snowy conditions."""
+    df = df.copy()
+
     if "PRCP" in df.columns:
-        df["is_rainy"] = (df["PRCP"] > 0.1).astype(int)
+        df.loc[:, "is_rainy"] = (df["PRCP"] > 0.1).astype(int)
     else:
-        df["is_rainy"] = 0
+        df.loc[:, "is_rainy"] = 0
 
     if "SNOW" in df.columns:
-        df["is_snowy"] = (df["SNOW"] > 0.1).astype(int)
+        df.loc[:, "is_snowy"] = (df["SNOW"] > 0.1).astype(int)
     else:
-        df["is_snowy"] = 0
+        df.loc[:, "is_snowy"] = 0
 
     return df
 
@@ -56,9 +61,11 @@ def encode_route(df):
     Label-encode route_id as a numeric feature.
     We use a simple mapping rather than one-hot to keep it manageable.
     """
-    route_ids = sorted(df["route_id"].dropna().unique())
+    df = df.copy()
+    df.loc[:, "route_id"] = df["route_id"].astype(str).str.strip()
+    route_ids = sorted(df["route_id"].dropna().unique().tolist())
     route_map = {r: i for i, r in enumerate(route_ids)}
-    df["route_encoded"] = df["route_id"].map(route_map)
+    df.loc[:, "route_encoded"] = df["route_id"].map(route_map)
     return df
 
 
@@ -96,7 +103,7 @@ def select_features(df):
     weather_cols = ["TMAX", "TMIN", "PRCP", "SNOW", "AWND"]
     for col in weather_cols:
         if col in df_feat.columns:
-            df_feat[col] = df_feat[col].fillna(0)
+            df_feat.loc[:, col] = df_feat[col].fillna(0)
 
     # Drop rows only if critical columns are missing
     df_feat = df_feat.dropna(subset=["hour", "day_of_week", "route_encoded", "is_delayed"])
