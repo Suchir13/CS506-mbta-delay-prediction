@@ -14,7 +14,7 @@ Run: python src/visualize.py
 """
 
 import os
-import pickle
+import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,6 +25,7 @@ CLEAN_PATH = "data/processed/clean.csv"
 FEATURES_PATH = "data/processed/features.csv"
 MODEL_PATH = "data/processed/best_model.pkl"
 PLOTS_DIR = "data/processed/plots"
+MAX_PRECIP_PLOT_ROWS = 100000
 
 # Use a clean, readable style
 sns.set_theme(style="whitegrid", palette="muted")
@@ -32,6 +33,18 @@ sns.set_theme(style="whitegrid", palette="muted")
 
 def ensure_plots_dir():
     os.makedirs(PLOTS_DIR, exist_ok=True)
+
+
+def load_clean_for_plots():
+    """Load only the clean-data columns needed for current plots."""
+    needed_cols = {"route_id", "hour", "is_delayed", "PRCP", "delay_minutes", "is_outlier"}
+    return pd.read_csv(CLEAN_PATH, usecols=lambda c: c in needed_cols, low_memory=False)
+
+
+def load_features_for_plots(feature_cols):
+    """Load only the feature columns needed for model-result plots."""
+    needed_cols = set(feature_cols) | {"is_delayed"}
+    return pd.read_csv(FEATURES_PATH, usecols=lambda c: c in needed_cols, low_memory=False)
 
 
 def plot_delay_by_hour(df):
@@ -84,12 +97,23 @@ def plot_delay_vs_precip(df):
         return
 
     df_plot = df[~df["is_outlier"]].copy() if "is_outlier" in df.columns else df.copy()
-    df_plot["Weather"] = df_plot["PRCP"].apply(
-        lambda x: "Rainy (PRCP > 0.1\")" if x > 0.1 else "Dry"
-    )
+    df_plot = df_plot[["PRCP", "delay_minutes"]].dropna().copy()
+
+    if len(df_plot) > MAX_PRECIP_PLOT_ROWS:
+        df_plot = df_plot.sample(MAX_PRECIP_PLOT_ROWS, random_state=42)
+        print(f"Sampled {MAX_PRECIP_PLOT_ROWS:,} rows for precipitation plot.")
+
+    dry = df_plot.loc[df_plot["PRCP"] <= 0.1, "delay_minutes"].to_numpy()
+    rainy = df_plot.loc[df_plot["PRCP"] > 0.1, "delay_minutes"].to_numpy()
+
+    if len(dry) == 0 or len(rainy) == 0:
+        print("Skipping precipitation plot: insufficient dry/rainy samples.")
+        return
 
     fig, ax = plt.subplots(figsize=(7, 5))
-    sns.boxplot(data=df_plot, x="Weather", y="delay_minutes", ax=ax, palette=["skyblue", "lightcoral"])
+    ax.boxplot([dry, rainy], labels=["Dry", 'Rainy (PRCP > 0.1")'], patch_artist=True)
+    for patch, color in zip(ax.artists, ["skyblue", "lightcoral"]):
+        patch.set_facecolor(color)
     ax.set_title("Delay Distribution: Rainy vs Dry Days", fontsize=14, fontweight="bold")
     ax.set_ylabel("Delay (minutes)")
     ax.set_ylim(-10, 30)
@@ -163,24 +187,23 @@ def plot_feature_importance(model_bundle):
 def make_plots():
     ensure_plots_dir()
 
+    # Load best model
+    model_bundle = None
+    if os.path.exists(MODEL_PATH):
+        model_bundle = joblib.load(MODEL_PATH)
+
     # Load clean data for EDA plots
     df_clean = None
     if os.path.exists(CLEAN_PATH):
-        df_clean = pd.read_csv(CLEAN_PATH)
-        print(f"Loaded clean data: {len(df_clean)} rows\n")
+        df_clean = load_clean_for_plots()
+        print(f"Loaded clean data for plots: {len(df_clean)} rows\n")
     else:
         print(f"WARNING: {CLEAN_PATH} not found. Run clean_data.py first.")
 
     # Load feature matrix for model plots
     df_feat = None
-    if os.path.exists(FEATURES_PATH):
-        df_feat = pd.read_csv(FEATURES_PATH)
-
-    # Load best model
-    model_bundle = None
-    if os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            model_bundle = pickle.load(f)
+    if os.path.exists(FEATURES_PATH) and model_bundle is not None:
+        df_feat = load_features_for_plots(model_bundle["features"])
 
     # Generate plots
     if df_clean is not None:

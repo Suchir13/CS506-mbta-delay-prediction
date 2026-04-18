@@ -35,6 +35,17 @@ python src/train.py
 python src/visualize.py
 ```
 
+> **Official MBTA arrival/departure dataset option:**  
+> Historical bus arrival/departure files can also be downloaded from the MassGIS/MBTA dataset pages:  
+> 2025 MassGIS dataset: https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about  
+> 2026 MassGIS dataset: https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c  
+> Place the monthly CSV files in `data/raw/arrival_departure/` and run:
+> ```bash
+> python src/clean_data.py --source official --dataset-dir data/raw/arrival_departure
+> python src/features.py
+> ```
+> The current official-data cleaning path defaults to the **most recent month** for faster local regeneration.
+
 ### 4. Run Tests
 ```bash
 pytest tests/ -v
@@ -70,6 +81,26 @@ python src/collect_weather.py --start 2025-01-01 --end 2025-10-31
 
 ## Data Collection
 
+### Official MBTA Bus Arrival/Departure Dataset (MassGIS / MBTA)
+An official historical MBTA bus arrival/departure dataset is also supported.
+It provides richer event-level schedule vs. actual timing information than the simplified API-derived delay table, including route direction, timepoint order, point type, and schedule/headway fields.
+
+Download sources:
+- **2025 MassGIS dataset:** https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
+- **2026 MassGIS dataset:** https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
+
+**Dataset:** 35,256,063 arrival/departure records across monthly files from 2025 and 2026
+
+Place the downloaded monthly CSV files in:
+`data/raw/arrival_departure/`
+
+Recent pipeline updates added:
+- official dataset support in `clean_data.py`
+- a source toggle for TransitMatters vs official files
+- a latest-month fast-load option for local runs
+- route-id handling fixes in `features.py`
+- safer plotting behavior in `visualize.py`
+
 ### MBTA Travel Time Data — TransitMatters API
 Real historical bus travel-time data is collected from the [TransitMatters Dashboard API](https://dashboard-api.labs.transitmatters.org) — a free, publicly available archive of MBTA GTFS-RT data. No API key is required.
 
@@ -92,7 +123,7 @@ Real historical bus travel-time data is collected from the [TransitMatters Dashb
 | 39 | Forest Hills → Back Bay |
 | 57 | Watertown → Kenmore |
 
-**Dataset:** 131,753 trip records, January 2025 – October 2025
+**TransitMatters dataset:** 131,753 trip records, January 2025 – October 2025
 
 > **Why TransitMatters instead of the MBTA API?**  
 > The MBTA v3 `/predictions` endpoint is real-time only — once a bus passes a stop, the prediction is gone. TransitMatters archives MBTA GTFS-RT data and exposes it via a free historical API.
@@ -165,6 +196,8 @@ Three classifiers are trained and compared in `src/train.py`:
 **Metrics:** Accuracy, Precision, Recall, F1, ROC-AUC
 
 The best model (by validation F1) is saved to `data/processed/best_model.pkl`.
+
+We also ran a bounded Random Forest parameter sweep in `src/randomForestParams.py` to compare model size versus predictive performance. The smallest tested model was about **4 MB** and the current compact configuration was about **38 MB**, while larger bounded variants grew to about **246 MB** and **1089 MB**. Those larger models only improved validation/test F1 slightly, so the compact Random Forest gives a much better storage tradeoff with only a small loss in predictive quality. All comparison outputs are saved in `data/processed/models/`, including per-model `.pkl` files and `random_forest_param_results.csv`.
 
 ---
 
