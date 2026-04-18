@@ -22,6 +22,7 @@ PROCESSED_DIR = "data/processed"
 OFFICIAL_DATASET_DIR = f"{RAW_DIR}/arrival_departure"
 OUTLIER_MINUTES = 120
 DELAY_THRESHOLD_MINUTES = 5
+OFFICIAL_STANDARD_TYPE_DEFAULT = "schedule"
 
 
 def print_progress_bar(current, total, prefix="Progress", width=30):
@@ -163,6 +164,66 @@ def official_timestamp_series_to_service_hms(series):
     return out
 
 
+def filter_official_standard_type(df, official_standard_type="schedule"):
+    """
+    Filter official MBTA rows by standard type.
+
+    Modes:
+      - schedule: keep only Schedule rows
+      - headway: keep only Headway rows
+      - all: keep both
+    """
+    if "standard_type" not in df.columns:
+        return df
+
+    mode = str(official_standard_type).strip().lower()
+    if mode == "all":
+        print(f"Keeping all official standard types: {len(df)} rows")
+        return df
+
+    expected = "Schedule" if mode == "schedule" else "Headway"
+    before = len(df)
+    df = df[df["standard_type"].astype(str).str.strip().eq(expected)].copy()
+    print(f"Filtered to {expected} rows: {len(df)} kept ({before - len(df)} removed)")
+    return df
+
+
+def normalize_official_arrival_departure(df):
+    """Normalize official MBTA arrival/departure rows into the pipeline schema."""
+    scheduled_ts = pd.to_datetime(df["scheduled"], errors="coerce", utc=True)
+    actual_ts = pd.to_datetime(df["actual"], errors="coerce", utc=True)
+
+    print("Computing normalized delay fields...")
+    df_norm = pd.DataFrame({
+        "route_id": df["route_id"],
+        "trip_id": df["half_trip_id"],
+        "stop_id": df["stop_id"],
+        "date": df["service_date"],
+        "stop_sequence": df["time_point_order"],
+        "scheduled_timestamp": df["scheduled"],
+        "actual_timestamp": df["actual"],
+        "scheduled_arrival": official_timestamp_series_to_service_hms(df["scheduled"]),
+        "actual_arrival": official_timestamp_series_to_service_hms(df["actual"]),
+        "has_actual": actual_ts.notna().astype(int),
+        "delay_minutes": (actual_ts - scheduled_ts).dt.total_seconds() / 60.0,
+        "is_delayed": ((actual_ts - scheduled_ts).dt.total_seconds() / 60.0 > DELAY_THRESHOLD_MINUTES).astype(int),
+        # Preserve richer official fields for downstream use.
+        "direction_id": df["direction_id"],
+        "time_point_id": df["time_point_id"],
+        "time_point_order": df["time_point_order"],
+        "point_type": df["point_type"],
+        "standard_type": df["standard_type"],
+        "scheduled_headway": df["scheduled_headway"],
+        "headway": df["headway"],
+    })
+
+    for col in ["time_point_order", "stop_sequence", "scheduled_headway", "headway", "delay_minutes"]:
+        if col in df_norm.columns:
+            df_norm.loc[:, col] = pd.to_numeric(df_norm[col], errors="coerce")
+
+    return df_norm
+
+
 def count_data_rows(path):
     """Count non-header rows in a CSV file for progress reporting."""
     with open(path, "rb") as f:
@@ -193,7 +254,7 @@ def read_csv_with_progress(path, usecols, dtype, chunksize=200000, prefix="Loadi
     return pd.concat(frames, ignore_index=True)
 
 
-def load_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR):
+def load_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     """
     Load and minimally normalize official MBTA arrival/departure monthly CSVs.
 
@@ -237,39 +298,11 @@ def load_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR):
     df = pd.concat(frames, ignore_index=True)
     print(f"Loaded {len(df)} official arrival/departure rows from {len(paths)} files.")
 
-    # For the current event-level lateness target, use schedule-based rows only.
-    if "standard_type" in df.columns:
-        before = len(df)
-        df = df[df["standard_type"].astype(str).str.strip().eq("Schedule")].copy()
-        print(f"Filtered to Schedule rows: {len(df)} kept ({before - len(df)} removed)")
-
-    scheduled_ts = pd.to_datetime(df["scheduled"], errors="coerce", utc=True)
-    actual_ts = pd.to_datetime(df["actual"], errors="coerce", utc=True)
-
-    print("Computing normalized delay fields...")
-    df_norm = pd.DataFrame({
-        "route_id": df["route_id"],
-        "trip_id": df["half_trip_id"],
-        "stop_id": df["stop_id"],
-        "date": df["service_date"],
-        "stop_sequence": df["time_point_order"],
-        "scheduled_arrival": official_timestamp_series_to_service_hms(df["scheduled"]),
-        "delay_minutes": (actual_ts - scheduled_ts).dt.total_seconds() / 60.0,
-        "is_delayed": ((actual_ts - scheduled_ts).dt.total_seconds() / 60.0 > DELAY_THRESHOLD_MINUTES).astype(int),
-        # Preserve richer official fields for future downstream use.
-        "direction_id": df["direction_id"],
-        "time_point_id": df["time_point_id"],
-        "time_point_order": df["time_point_order"],
-        "point_type": df["point_type"],
-        "standard_type": df["standard_type"],
-        "scheduled_headway": df["scheduled_headway"],
-        "headway": df["headway"],
-    })
-
-    return df_norm
+    df = filter_official_standard_type(df, official_standard_type=official_standard_type)
+    return normalize_official_arrival_departure(df)
 
 
-def load_latest_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR):
+def load_latest_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     """
     Load only the most recent official MBTA arrival/departure monthly CSV.
 
@@ -308,34 +341,8 @@ def load_latest_official_arrival_departure(dataset_dir=OFFICIAL_DATASET_DIR):
     )
     print(f"Loaded {len(df)} official arrival/departure rows from latest file.")
 
-    if "standard_type" in df.columns:
-        before = len(df)
-        df = df[df["standard_type"].astype(str).str.strip().eq("Schedule")].copy()
-        print(f"Filtered to Schedule rows: {len(df)} kept ({before - len(df)} removed)")
-
-    scheduled_ts = pd.to_datetime(df["scheduled"], errors="coerce", utc=True)
-    actual_ts = pd.to_datetime(df["actual"], errors="coerce", utc=True)
-
-    print("Computing normalized delay fields...")
-    df_norm = pd.DataFrame({
-        "route_id": df["route_id"],
-        "trip_id": df["half_trip_id"],
-        "stop_id": df["stop_id"],
-        "date": df["service_date"],
-        "stop_sequence": df["time_point_order"],
-        "scheduled_arrival": official_timestamp_series_to_service_hms(df["scheduled"]),
-        "delay_minutes": (actual_ts - scheduled_ts).dt.total_seconds() / 60.0,
-        "is_delayed": ((actual_ts - scheduled_ts).dt.total_seconds() / 60.0 > DELAY_THRESHOLD_MINUTES).astype(int),
-        "direction_id": df["direction_id"],
-        "time_point_id": df["time_point_id"],
-        "time_point_order": df["time_point_order"],
-        "point_type": df["point_type"],
-        "standard_type": df["standard_type"],
-        "scheduled_headway": df["scheduled_headway"],
-        "headway": df["headway"],
-    })
-
-    return df_norm
+    df = filter_official_standard_type(df, official_standard_type=official_standard_type)
+    return normalize_official_arrival_departure(df)
 
 
 def load_weather():
@@ -503,19 +510,23 @@ def merge_weather(df_mbta, df_weather):
     return df
 
 
-def load_bus_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR):
+def load_bus_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     if source == "official":
         # use only the most recent month.
-        # return load_latest_official_arrival_departure(dataset_dir)
+        # return load_latest_official_arrival_departure(dataset_dir, official_standard_type=official_standard_type)
         # full dataset instead:
-        return load_official_arrival_departure(dataset_dir)
+        return load_official_arrival_departure(dataset_dir, official_standard_type=official_standard_type)
     return load_travel_times()
 
 
-def clean_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR):
+def clean_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
-    df = load_bus_data(source=source, dataset_dir=dataset_dir)
+    df = load_bus_data(
+        source=source,
+        dataset_dir=dataset_dir,
+        official_standard_type=official_standard_type,
+    )
     df_weather = load_weather()
 
     df = clean_mbta(df)
@@ -527,7 +538,9 @@ def clean_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR):
     df = merge_weather(df, df_weather)
 
     final_cols = [
-        "route_id", "date", "hour", "day_of_week", "is_weekend", "is_peak",
+        "route_id", "trip_id", "stop_id", "date", "hour", "day_of_week", "is_weekend", "is_peak",
+        "stop_sequence", "scheduled_timestamp", "actual_timestamp",
+        "scheduled_arrival", "actual_arrival", "has_actual",
         "delay_minutes", "is_delayed", "is_outlier",
         "direction_id", "time_point_id", "time_point_order", "point_type",
         "standard_type", "scheduled_headway", "headway",
@@ -555,6 +568,15 @@ def parse_args():
         default=OFFICIAL_DATASET_DIR,
         help=f"Directory of official MBTA arrival/departure CSVs (default: {OFFICIAL_DATASET_DIR})",
     )
+    parser.add_argument(
+        "--official-standard-type",
+        choices=["schedule", "headway", "all"],
+        default=OFFICIAL_STANDARD_TYPE_DEFAULT,
+        help=(
+            "Which official MBTA row type to keep when --source official is used "
+            f"(default: {OFFICIAL_STANDARD_TYPE_DEFAULT})"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -562,5 +584,11 @@ if __name__ == "__main__":
     args = parse_args()
     print("=== Cleaning Data ===\n")
     print(f"Source: {args.source}")
-    clean_data(source=args.source, dataset_dir=args.dataset_dir)
+    if args.source == "official":
+        print(f"Official standard type mode: {args.official_standard_type}")
+    clean_data(
+        source=args.source,
+        dataset_dir=args.dataset_dir,
+        official_standard_type=args.official_standard_type,
+    )
     print("\nDone!")

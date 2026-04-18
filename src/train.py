@@ -37,11 +37,25 @@ RF_MIN_SAMPLES_LEAF = 50
 RF_MAX_FEATURES = "sqrt"
 
 FEATURE_COLS = [
-    "hour", "day_of_week", "is_weekend", "is_peak",
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "is_peak",
     "route_encoded",
-    # route_avg_delay excluded: computed on full dataset → data leakage
-    "is_rainy", "is_snowy",
-    "TMAX", "TMIN", "PRCP", "SNOW", "AWND",
+    "direction_encoded",
+    "point_type_encoded",
+    "standard_type_encoded",
+    "stop_sequence",
+    "has_actual",
+    "scheduled_headway_minutes",
+    "scheduled_headway_missing",
+    "is_rainy",
+    "is_snowy",
+    "TMAX",
+    "TMIN",
+    "PRCP",
+    "SNOW",
+    "AWND",
 ]
 
 
@@ -50,6 +64,13 @@ def load_features():
         raise FileNotFoundError(f"{FEATURES_PATH} not found. Run features.py first.")
     
     df = pd.read_csv(FEATURES_PATH)
+
+    missing = [col for col in FEATURE_COLS + ["is_delayed"] if col not in df.columns]
+    if missing:
+        raise ValueError(
+            "Feature matrix is missing expected columns: "
+            f"{missing}. Rebuild features.csv with features.py."
+        )
 
     print(f"\nLoaded feature matrix: {df.shape}")
     print("\nColumns:")
