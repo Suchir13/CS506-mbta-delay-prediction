@@ -36,16 +36,19 @@ RF_MIN_SAMPLES_SPLIT = 100
 RF_MIN_SAMPLES_LEAF = 50
 RF_MAX_FEATURES = "sqrt"
 
-FEATURE_COLS = [
+# All possible feature columns. train.py will automatically use only
+# the ones present in features.csv — so this works with both
+# TransitMatters data (fewer columns) and MassGIS official data (more columns).
+ALL_POSSIBLE_FEATURE_COLS = [
     "hour",
     "day_of_week",
     "is_weekend",
     "is_peak",
     "route_encoded",
-    "direction_encoded",
-    "point_type_encoded",
-    "standard_type_encoded",
-    "stop_sequence",
+    "direction_encoded",       # only in MassGIS official data
+    "point_type_encoded",      # only in MassGIS official data
+    "standard_type_encoded",   # only in MassGIS official data
+    "stop_sequence",           # only in MassGIS official data
     "has_actual",
     "scheduled_headway_minutes",
     "scheduled_headway_missing",
@@ -58,19 +61,23 @@ FEATURE_COLS = [
     "AWND",
 ]
 
+# Will be set after loading — only columns present in features.csv
+FEATURE_COLS = []
+
 
 def load_features():
+    global FEATURE_COLS
     if not os.path.exists(FEATURES_PATH):
         raise FileNotFoundError(f"{FEATURES_PATH} not found. Run features.py first.")
-    
+
     df = pd.read_csv(FEATURES_PATH)
 
-    missing = [col for col in FEATURE_COLS + ["is_delayed"] if col not in df.columns]
-    if missing:
-        raise ValueError(
-            "Feature matrix is missing expected columns: "
-            f"{missing}. Rebuild features.csv with features.py."
-        )
+    if "is_delayed" not in df.columns:
+        raise ValueError("features.csv is missing target column 'is_delayed'.")
+
+    # Use only the feature columns that actually exist in this file
+    FEATURE_COLS = [c for c in ALL_POSSIBLE_FEATURE_COLS if c in df.columns]
+    print(f"Using {len(FEATURE_COLS)} features: {FEATURE_COLS}")
 
     print(f"\nLoaded feature matrix: {df.shape}")
     print("\nColumns:")
