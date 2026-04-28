@@ -23,7 +23,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 CLEAN_PATH = "data/processed/clean.csv"
 FEATURES_PATH = "data/processed/features.csv"
-MODEL_PATH = "data/processed/best_model.pkl"
+MODEL_PATH = "data/processed/models/rf_medium_n50_d20_split50_leaf25.pkl"
 PLOTS_DIR = "data/processed/plots"
 MAX_PRECIP_PLOT_ROWS = 100000
 
@@ -127,7 +127,7 @@ def plot_delay_vs_precip(df):
 def plot_confusion_matrix(df_feat, model_bundle):
     """Confusion matrix on the test portion of the feature data."""
     model = model_bundle["model"]
-    scaler = model_bundle["scaler"]
+    scaler = model_bundle.get("scaler")
     feature_cols = model_bundle["features"]
 
     target = "is_delayed"
@@ -144,7 +144,7 @@ def plot_confusion_matrix(df_feat, model_bundle):
         return
 
     model_name = type(model).__name__
-    if "Logistic" in model_name:
+    if "Logistic" in model_name and scaler is not None:
         X_test = scaler.transform(X_test)
 
     preds = model.predict(X_test)
