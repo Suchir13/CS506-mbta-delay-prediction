@@ -510,7 +510,7 @@ def merge_weather(df_mbta, df_weather):
     return df
 
 
-def load_bus_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
+def load_bus_data(source="official", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     if source == "official":
         # use only the most recent month.
         # return load_latest_official_arrival_departure(dataset_dir, official_standard_type=official_standard_type)
@@ -519,7 +519,7 @@ def load_bus_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR, off
     return load_travel_times()
 
 
-def clean_data(source="transitmatters", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
+def clean_data(source="official", dataset_dir=OFFICIAL_DATASET_DIR, official_standard_type=OFFICIAL_STANDARD_TYPE_DEFAULT):
     os.makedirs(PROCESSED_DIR, exist_ok=True)
 
     df = load_bus_data(
@@ -560,8 +560,8 @@ def parse_args():
     parser.add_argument(
         "--source",
         choices=["transitmatters", "official"],
-        default="transitmatters",
-        help="Raw data source to clean (default: transitmatters)",
+        default="official",
+        help="Raw data source to clean (default: official)",
     )
     parser.add_argument(
         "--dataset-dir",

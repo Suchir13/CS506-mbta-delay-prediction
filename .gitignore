@@ -210,4 +210,4 @@ marimo/_lsp/
 __marimo__/
 
 #data files
-data/raw/*csv
+data/raw/arrival_departure/*.csv
