@@ -54,7 +54,6 @@ def load_threshold(model_data):
 
     return 0.5
 
-print('Future Scope Testing...')
 print("\n=== MBTA Delay Predictor ===\n")
 
 def prompt_with_quit(prompt, default=None):
@@ -210,6 +209,14 @@ def main():
             print("- High-traffic route")
 
         print("\n--- New query ---\n")
+import pandas as pd
+
+#df = pd.read_csv("data/processed/clean.csv")
+df = pd.read_csv(
+    "data/processed/clean.csv",
+    dtype={"route_id": str},
+    low_memory=False
+)
 
 
 if __name__ == "__main__":
