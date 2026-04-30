@@ -92,27 +92,7 @@ python src/visualize.py
 
 ## Data Collection
 
-### Source 1 — MBTA Travel Times: TransitMatters API
-Real historical bus travel-time data from the [TransitMatters Dashboard API](https://dashboard-api.labs.transitmatters.org) — a free, publicly available archive of MBTA GTFS-RT data. No API key required.
-
-The MBTA v3 `/predictions` endpoint is real-time only — once a bus passes a stop, the prediction disappears. TransitMatters archives this data historically, making it the only free source of real past MBTA bus delays.
-
-**Delay formula:** `delay_minutes = (actual_travel_time − benchmark_travel_time) / 60`
-**Target variable:** `is_delayed = 1` if `delay_minutes > 5`, else `0`
-
-**Routes covered:**
-
-| Route | Segment |
-|-------|---------|
-| 1 | Harvard → Nubian |
-| 15 | Uphams Corner → Ruggles |
-| 28 | Mattapan → Nubian |
-| 39 | Forest Hills → Back Bay |
-| 57 | Watertown → Kenmore |
-
-**Dataset:** 131,753 real trip records, January 2025 – October 2025, 17.9% delayed
-
-### Source 2 — Boston Weather: Open-Meteo
+### Source 1 — Boston Weather: Open-Meteo
 Historical daily weather from [Open-Meteo](https://archive-api.open-meteo.com/v1/archive). No API key required.
 
 - **Location:** Boston (42.3601 N, 71.0589 W)
@@ -121,7 +101,7 @@ Historical daily weather from [Open-Meteo](https://archive-api.open-meteo.com/v1
 - Merged with MBTA data by service date
 - **Dataset:** 304 days, January 2025 – October 2025
 
-### Source 3 — Official MassGIS / MBTA Dataset (also supported)
+### Source 2 — Official MassGIS / MBTA Dataset (also supported)
 The official MBTA Bus Arrival/Departure dataset published by MassDOT provides per-stop actual vs scheduled arrival times for all routes back to 2019. This is the primary upstream source that TransitMatters derives data from.
 
 - **2025 dataset:** https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
