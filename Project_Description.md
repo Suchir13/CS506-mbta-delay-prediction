@@ -140,7 +140,7 @@ Per-slice (test set): Peak hours F1=0.314, Off-peak F1=0.212
 | 5 | Feature engineering, RF, GBT, hyperparameter tuning | ✅ Complete |
 | 6 | Error analysis, feature importance, PR/ROC curves | ✅ Complete |
 | 7 | Robustness checks, interactive predictor | ✅ Complete |
-| 8 | Final polish, presentation video | ⬜ Pending |
+| 8 | Final polish, presentation video | ✅ Complete |
 
 ---
 

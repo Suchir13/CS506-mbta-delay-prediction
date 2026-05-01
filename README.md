@@ -328,7 +328,7 @@ CS506-mbta-delay-prediction/
 | 5 | Feature engineering, Random Forest, GBT, hyperparameter tuning | ✅ Complete |
 | 6 | Error analysis, feature importance, PR/ROC curves | ✅ Complete |
 | 7 | Robustness checks (peak/off-peak, per-route), interactive predictor | ✅ Complete |
-| 8 | Final polish, 10-min presentation video | ⬜ Pending |
+| 8 | Final polish, 10-min presentation video | ✅ Complete |
 
 ---
 
