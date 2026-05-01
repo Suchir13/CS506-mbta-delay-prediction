@@ -16,7 +16,7 @@ LATITUDE  = 42.3601
 LONGITUDE = -71.0589
 OUTPUT    = "data/raw/weather.csv"
 
-# Match the travel time data range collected from TransitMatters
+# Match the date range of your MassGIS arrival/departure data
 START_DATE = "2024-01-01"
 END_DATE   = "2025-03-31"
 
