@@ -322,7 +322,7 @@ CS506-mbta-delay-prediction/
 | Week | Goal | Status |
 |------|------|--------|
 | 1 | API setup, route scoping | ✅ Complete |
-| 2 | Real data collection, weather merge | ✅ Complete — TransitMatters + Open-Meteo |
+| 2 | Real data collection, weather merge | ✅ Complete — MassGIS + Open-Meteo |
 | 3 | Pipeline hardening, EDA, outlier handling | ✅ Complete |
 | 4 | Baseline Logistic Regression, March check-in | ✅ Complete |
 | 5 | Feature engineering, Random Forest, GBT, hyperparameter tuning | ✅ Complete |
@@ -342,7 +342,7 @@ CS506-mbta-delay-prediction/
 
 ## Limitations
 
-- Only one stop-pair per route tracked in TransitMatters data — inbound main segment only
+- Only one stop-pair per route tracked in TransitMatters data (which we used at first) — inbound main segment only
 - Weather merged at daily granularity — hourly weather would improve signal
 - Validation–test F1 gap (0.422 → 0.254) suggests threshold doesn't generalise across seasons
 - Dataset imbalance (82% on-time) means precision is low — model favours recall
