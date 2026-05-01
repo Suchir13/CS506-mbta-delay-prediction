@@ -285,7 +285,6 @@ GitHub Actions runs these automatically on every push via `.github/workflows/tes
 ```
 CS506-mbta-delay-prediction/
 ├── src/
-│   ├── collect_transitmatters.py   # Download real MBTA data from TransitMatters
 │   ├── collect_weather.py          # Download Boston weather from Open-Meteo
 │   ├── clean_data.py               # Merge, compute delays, clean data
 │   ├── features.py                 # Feature engineering (15 features)
