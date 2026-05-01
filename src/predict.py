@@ -13,11 +13,22 @@ CLEAN_PATH = "data/processed/clean.csv"
 MODEL_RESULTS_PATH = "data/processed/model_results.csv"
 
 
+def normalize_input(val):
+    if val is None:
+        return None
+    return str(val).strip().lower()
+
+
 def build_mapping(series):
     values = series.astype(str).str.strip()
     values = values.replace({"": np.nan, "nan": np.nan, "None": np.nan})
+
     categories = sorted(values.dropna().unique().tolist())
-    return {value: idx for idx, value in enumerate(categories)}
+
+    mapping = {value: idx for idx, value in enumerate(categories)}
+    normalized_mapping = {value.strip().lower(): value for value in categories}
+
+    return mapping, normalized_mapping
 
 
 def load_reference_mappings():
@@ -32,10 +43,10 @@ def load_reference_mappings():
     )
 
     return {
-        "route": build_mapping(ref["route_id"]) if "route_id" in ref.columns else {},
-        "direction": build_mapping(ref["direction_id"]) if "direction_id" in ref.columns else {},
-        "point_type": build_mapping(ref["point_type"]) if "point_type" in ref.columns else {},
-        "standard_type": build_mapping(ref["standard_type"]) if "standard_type" in ref.columns else {},
+        "route": build_mapping(ref["route_id"]) if "route_id" in ref.columns else ({}, {}),
+        "direction": build_mapping(ref["direction_id"]) if "direction_id" in ref.columns else ({}, {}),
+        "point_type": build_mapping(ref["point_type"]) if "point_type" in ref.columns else ({}, {}),
+        "standard_type": build_mapping(ref["standard_type"]) if "standard_type" in ref.columns else ({}, {}),
     }
 
 
@@ -54,7 +65,9 @@ def load_threshold(model_data):
 
     return 0.5
 
+
 print("\n=== MBTA Delay Predictor ===\n")
+
 
 def prompt_with_quit(prompt, default=None):
     raw = input(prompt).strip()
@@ -81,30 +94,39 @@ def prompt_int(prompt, valid_range=None):
 
 
 def build_input_row(features, mappings):
-    hour = prompt_int("Enter hour of day (0 to 23): ", valid_range=range(24))
+    hour = prompt_int("Enter hour of day (0 to 23): ", range(24))
     if hour is None:
         return None
 
-    day_of_week = prompt_int(
-        "Enter day (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun): ",
-        valid_range=range(7),
-    )
+    day_of_week = prompt_int("Enter day (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun): ", range(7))
     if day_of_week is None:
         return None
 
-    routes = mappings["route"]
-    print("\nAvailable routes:", ", ".join(routes.keys()))
+    # route
+    routes, routes_norm = mappings["route"]
+    print("\nAvailable routes: ", ", ".join(routes.keys()))
+
     route_input = prompt_with_quit("Enter route no: ")
     if route_input is None:
         return None
-    while route_input not in routes:
+
+    route_norm = normalize_input(route_input)
+
+    while route_norm not in routes_norm:
         route_input = prompt_with_quit("Invalid route! Please enter an available one: ")
         if route_input is None:
             return None
-    route_encoded = routes[route_input]
+        route_norm = normalize_input(route_input)
 
-    direction_options = list(mappings["direction"].keys())
-    direction_default = "Outbound" if "Outbound" in mappings["direction"] else (direction_options[0] if direction_options else "")
+    route_actual = routes_norm[route_norm]
+    route_encoded = routes[route_actual]
+
+    # direction
+    direction_map, direction_norm = mappings["direction"]
+    direction_options = list(direction_map.keys())
+
+    direction_default = "Outbound" if "Outbound" in direction_map else (direction_options[0] if direction_options else "")
+
     direction_input = prompt_with_quit(
         f"Direction {direction_options} [default={direction_default}]: ",
         default=direction_default,
@@ -112,26 +134,39 @@ def build_input_row(features, mappings):
     if direction_input is None:
         return None
 
-    point_type_options = list(mappings["point_type"].keys())
-    point_type_default = "Midpoint" if "Midpoint" in mappings["point_type"] else (point_type_options[0] if point_type_options else "")
-    point_type_input = prompt_with_quit(
-        f"Point type {point_type_options} [default={point_type_default}]: ",
-        default=point_type_default,
+    direction_actual = direction_norm.get(normalize_input(direction_input))
+    direction_encoded = direction_map.get(direction_actual, -1)
+
+    # point type
+    point_map, point_norm = mappings["point_type"]
+    point_options = list(point_map.keys())
+
+    point_default = "Midpoint" if "Midpoint" in point_map else (point_options[0] if point_options else "")
+
+    point_input = prompt_with_quit(
+        f"Point type {point_options} [default={point_default}]: ",
+        default=point_default,
     )
-    if point_type_input is None:
+    if point_input is None:
         return None
 
-    standard_type_default = "Schedule" if "Schedule" in mappings["standard_type"] else (list(mappings["standard_type"].keys())[0] if mappings["standard_type"] else "")
+    point_actual = point_norm.get(normalize_input(point_input))
+    point_encoded = point_map.get(point_actual, -1)
 
-    weather = prompt_with_quit("Weather condition (clear/ rain/ snow) [default=clear]: ", default="clear")
+    # weather
+    weather = prompt_with_quit("Weather (Clear/ Rain/ Snow) [default=Clear]: ", default="Clear")
     if weather is None:
         return None
-    weather = weather.lower()
+
+    weather = normalize_input(weather)
 
     is_weekend = 1 if day_of_week >= 5 else 0
     is_peak = 1 if (day_of_week < 5 and (7 <= hour <= 9 or 16 <= hour <= 19)) else 0
     is_rainy = 1 if weather == "rain" else 0
     is_snowy = 1 if weather == "snow" else 0
+
+    standard_map, _ = mappings["standard_type"]
+    standard_default = "Schedule" if "Schedule" in standard_map else (list(standard_map.keys())[0] if standard_map else "")
 
     new_data = pd.DataFrame([{
         "hour": hour,
@@ -139,9 +174,9 @@ def build_input_row(features, mappings):
         "is_weekend": is_weekend,
         "is_peak": is_peak,
         "route_encoded": route_encoded,
-        "direction_encoded": mappings["direction"].get(direction_input, -1),
-        "point_type_encoded": mappings["point_type"].get(point_type_input, -1),
-        "standard_type_encoded": mappings["standard_type"].get(standard_type_default, -1),
+        "direction_encoded": direction_encoded,
+        "point_type_encoded": point_encoded,
+        "standard_type_encoded": standard_map.get(standard_default, -1),
         "stop_sequence": 10,
         "has_actual": 1,
         "scheduled_headway_minutes": 10,
@@ -159,11 +194,10 @@ def build_input_row(features, mappings):
         if feature not in new_data.columns:
             new_data[feature] = 0
 
-    return new_data[features], route_input, is_peak, is_rainy, is_snowy
+    return new_data[features], route_actual, is_peak, is_rainy, is_snowy
 
 
 def main():
-    # loads model once
     model_data = joblib.load(MODEL_PATH)
     model = model_data["model"]
     scaler = model_data.get("scaler")
@@ -181,11 +215,11 @@ def main():
 
         X, route_input, is_peak, is_rainy, is_snowy = built
 
-        try:
-            if scaler is not None:
+        if scaler is not None:
+            try:
                 X = scaler.transform(X)
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         proba = model.predict_proba(X)[:, 1]
         pred = (proba >= threshold).astype(int)
@@ -194,7 +228,7 @@ def main():
         print(f"Delay probability: {round(proba[0], 3)}")
 
         if pred[0] == 1:
-            print("Prediction: Likely DELAY :( (>5 min)")
+            print("Prediction: Likely DELAY (>5 min)")
         else:
             print("Prediction: Likely ON TIME!!")
 
@@ -205,18 +239,8 @@ def main():
             print("- Rain increases delays")
         if is_snowy:
             print("- Snow increases delays")
-        if route_input in ["1", "28"]:
-            print("- High-traffic route")
 
         print("\n--- New query ---\n")
-import pandas as pd
-
-#df = pd.read_csv("data/processed/clean.csv")
-df = pd.read_csv(
-    "data/processed/clean.csv",
-    dtype={"route_id": str},
-    low_memory=False
-)
 
 
 if __name__ == "__main__":
