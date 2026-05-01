@@ -36,19 +36,18 @@ RF_MIN_SAMPLES_SPLIT = 100
 RF_MIN_SAMPLES_LEAF = 50
 RF_MAX_FEATURES = "sqrt"
 
-# All possible feature columns. train.py will automatically use only
-# the ones present in features.csv — so this works with both
-# TransitMatters data (fewer columns) and MassGIS official data (more columns).
+# Feature columns from the MassGIS dataset. train.py will automatically use only
+# the ones present in features.csv.
 ALL_POSSIBLE_FEATURE_COLS = [
     "hour",
     "day_of_week",
     "is_weekend",
     "is_peak",
     "route_encoded",
-    "direction_encoded",       # only in MassGIS official data
-    "point_type_encoded",      # only in MassGIS official data
-    "standard_type_encoded",   # only in MassGIS official data
-    "stop_sequence",           # only in MassGIS official data
+    "direction_encoded",
+    "point_type_encoded",
+    "standard_type_encoded",
+    "stop_sequence",
     "has_actual",
     "scheduled_headway_minutes",
     "scheduled_headway_missing",
