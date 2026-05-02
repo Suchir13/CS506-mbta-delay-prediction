@@ -189,7 +189,7 @@ Three classifiers trained and compared in `src/train.py`:
 | Model | Val F1 | Threshold |
 |-------|--------|-----------|
 | Logistic Regression (baseline) | 0.405 | 0.42 |
-| **Random Forest (best)** | **0.399** | **0.60** |
+| **Random Forest (best)** | **0.422** | **0.53** |
 | Gradient Boosted Trees | 0.427 | 0.64 |
 
 *Logistic Regression and Gradient Boosted Trees were commented out later
