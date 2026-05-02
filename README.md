@@ -154,6 +154,7 @@ Features built in `src/features.py` (19 total):
 | `AWND` | Average wind speed (mph) |
 
 > `is_delayed` is our target variable (1 if delay > 5 minutes, else 0)
+
 > `route_avg_delay` was excluded — computing it before the train/test split introduces data leakage.
 
 ---
