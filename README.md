@@ -206,12 +206,13 @@ Three classifiers trained and compared in `src/train.py`:
 
 ### Per-Slice Performance (Test Set, from `evaluate.py`)
 
-| Slice | Accuracy | F1 |
-|-------|----------|----|
-| Peak hours | 0.235 | 0.314 |
-| Off-peak hours | 0.407 | 0.212 |
-| Route 1 (encoded=3) | 0.434 | 0.438 |
-| Route 28 (encoded=4) | 0.351 | 0.251 |
+=== Route-wise Performance ===
+Route 54 → Accuracy: 0.581, F1: 0.605
+Route 65 → Accuracy: 0.487, F1: 0.593
+Route 57 → Accuracy: 0.580, F1: 0.304
+Route 59 → Accuracy: 0.582, F1: 0.694
+Route 77 → Accuracy: 0.549, F1: 0.497
+...
 
 **Key Findings:**
 - `route_encoded` is the strongest predictor (26.7% importance) — with real data, different routes have genuinely different delay rates
