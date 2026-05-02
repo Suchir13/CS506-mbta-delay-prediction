@@ -1,7 +1,7 @@
 # Predicting MBTA Bus Delays Using Weather and Time Features
 **BU CS 506 Final Project**
 
-> 🎥 **Presentation Video:** [Link to be added after recording]
+> 🎥 **Presentation Video:** [https://www.youtube.com/watch?v=X4RSpT5v3qY]
 
 ---
 
