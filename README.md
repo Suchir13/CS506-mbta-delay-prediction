@@ -121,7 +121,7 @@ All cleaning logic is in `src/clean_data.py` — no manual edits anywhere.
 | Drop missing keys | Remove rows missing `route_id`, `date`, or arrival time |
 | Normalize fields | Standardize date format, strip whitespace |
 | Deduplication | Keep first occurrence per (trip, stop, date) |
-| Delay computation | `delay_minutes = actual − benchmark` (TransitMatters) |
+| Delay computation | `delay_minutes = actual − benchmark` |
 | Outlier flagging | Flag \|delay\| > 120 min — kept but marked `is_outlier=1` |
 | Weather imputation | Fill missing weather values with column median |
 | Weather merge | Join on service date — no future data leakage |
