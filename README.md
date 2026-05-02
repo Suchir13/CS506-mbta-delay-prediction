@@ -208,10 +208,15 @@ Three classifiers trained and compared in `src/train.py`:
 ### Per-Slice Performance (Test Set, from `evaluate.py`)
 
 === Route-wise Performance ===
+
 Route 54 → Accuracy: 0.581, F1: 0.605
+
 Route 65 → Accuracy: 0.487, F1: 0.593
+
 Route 57 → Accuracy: 0.580, F1: 0.304
+
 Route 59 → Accuracy: 0.582, F1: 0.694
+
 Route 77 → Accuracy: 0.549, F1: 0.497
 ...
 
