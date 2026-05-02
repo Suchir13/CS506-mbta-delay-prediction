@@ -48,10 +48,6 @@ def _fail(msg):
 def validate_schema(df):
     """
     Validate required columns for MassGIS MBTA input format.
-
-    Supported delay sources:
-      - delay_minutes
-      - (travel_time_sec and benchmark_travel_time_sec)
     """
     if df.empty:
         _fail("input dataframe is empty")
@@ -61,13 +57,8 @@ def validate_schema(df):
     if missing_base:
         _fail(f"missing required base columns: {missing_base}")
 
-    has_delay_col = "delay_minutes" in df.columns
-    has_perf_cols = {"travel_time_sec", "benchmark_travel_time_sec"}.issubset(df.columns)
-    if not (has_delay_col or has_perf_cols):
-        _fail(
-            "need either 'delay_minutes' OR both "
-            "'travel_time_sec' and 'benchmark_travel_time_sec'"
-        )
+    if "delay_minutes" not in df.columns:
+        _fail("missing 'delay_minutes' column - run on MassGIS data")
 
 
 def normalize_core_fields(df):
@@ -344,9 +335,6 @@ def clean_mbta(df):
     df, dedup_keys, dropped_dupes = deduplicate_mbta(df)
 
     if "delay_minutes" not in df.columns:
-        if "travel_time_sec" in df.columns and "benchmark_travel_time_sec" in df.columns:
-            df["delay_minutes"] = (df["travel_time_sec"] - df["benchmark_travel_time_sec"]) / 60.0
-        else:
             print("Cannot compute delay_minutes — missing required columns.")
             return pd.DataFrame()
 

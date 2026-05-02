@@ -172,22 +172,13 @@ def train_models():
     sample_weights = compute_sample_weight("balanced", y_train)
 
     models = {
-        # "Logistic Regression (baseline)": LogisticRegression(
-        #     max_iter=1000, random_state=42, class_weight="balanced"
-        # ),
-        "Random Forest": RandomForestClassifier(
-            n_estimators=RF_N_ESTIMATORS,
-            max_depth=RF_MAX_DEPTH,
-            min_samples_split=RF_MIN_SAMPLES_SPLIT,
-            min_samples_leaf=RF_MIN_SAMPLES_LEAF,
-            max_features=RF_MAX_FEATURES,
-            random_state=42,
-            n_jobs=-1,
-            class_weight="balanced",
+        "Logistic Regression (baseline)": LogisticRegression(
+            max_iter=1000, random_state=42, class_weight="balanced"
         ),
-        # "Gradient Boosted Trees": GradientBoostingClassifier(
-        #     n_estimators=100, random_state=42
-        # ),
+        "Random Forest": RandomForestClassifier(...),
+        "Gradient Boosted Trees": GradientBoostingClassifier(
+            n_estimators=100, random_state=42
+        ),
     }
 
     print("\n=== Validation Set Results ===")

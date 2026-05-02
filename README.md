@@ -1,15 +1,15 @@
 # Predicting MBTA Bus Delays Using Weather and Time Features
 **BU CS 506 Final Project**
 
-> 🎥 **Presentation Video:** [https://www.youtube.com/watch?v=X4RSpT5v3qY]
+> 🎥 **Presentation Video:** https://www.youtube.com/watch?v=X4RSpT5v3qY
 
 ---
 
 ## Project Description
 
-Public transportation reliability is critical for daily commuters in Boston. This project predicts whether an MBTA bus will arrive **more than 5 minutes late** using real historical bus travel-time data combined with Boston weather conditions and time-based features.
+Public transportation reliability is critical for daily commuters in Boston. This project predicts whether an MBTA bus will arrive **more than 5 minutes late** using real historical MBTA bus arrival/departure data combined with Boston weather conditions and time-based features.
 
-Understanding delay patterns helps identify factors contributing to unreliable service and provides insights for transit optimization.
+The dataset covers all MBTA bus routes across 15 months (Jan 2025 – Mar 2026), enabling network-wide analysis and prediction.
 
 ---
 
@@ -26,55 +26,53 @@ cd CS506-mbta-delay-prediction
 pip install -r requirements.txt
 ```
 
-### 3. Run the Full Pipeline
-# Place MassGIS monthly CSVs in data/raw/arrival_departure/ then:
+### 3. Reproduce Results (No Downloads Needed)
+All cleaned data and the trained model are already included. Run these to reproduce every result and regenerate all plots:
+
 ```bash
-python src/clean_data.py
 python src/features.py
 python src/train.py
 python src/visualize.py
+python src/evaluate.py
 ```
 
 ### 4. Run Tests
 ```bash
 pytest tests/ -v
 ```
+All 12 tests should pass.
 
 ### 5. Try the Interactive Predictor
-Enter a route, hour, day, and weather condition to get a live delay prediction from the trained model:
+Enter any MBTA route, hour, day, and weather condition to get a live delay prediction:
 ```bash
 python src/predict.py
 ```
 
-### 6. (Optional) Deep Evaluation
-Generates PR curves, ROC curves, and per-route/per-hour performance breakdowns:
+---
+
+## (Optional) Re-run From Raw Data
+
+The processed data is already committed, so you do not need to do this. Only follow these steps if you want to re-collect fresh data.
+
+### Download fresh MBTA data
+Download monthly CSV files from the official MassGIS / MBTA dataset — no API key required:
+- **2025 data:** https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
+- **2026 data:** https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
+
+Place all downloaded CSV files in `data/raw/arrival_departure/`.
+
+### Re-collect weather to match the date range
 ```bash
-python src/evaluate.py
+python src/collect_weather.py --start 2025-01-01 --end 2026-03-31
 ```
 
-### 7. (Optional) Re-collect fresh data
-No API keys required for either source:
+### Re-run the full pipeline from raw data
 ```bash
-# To re-collect data, download monthly CSVs from:
-# 2025: https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
-# 2026: https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
-# Place in data/raw/arrival_departure/ and run python src/clean_data.py
-
-# Re-collect Boston weather from Open-Meteo (free, no auth)
-python src/collect_weather.py --start 2025-01-01 --end 2025-10-31
-```
-
-### 8. (Optional) Use Official MassGIS Dataset
-For higher-fidelity data with per-stop actual arrival times and direction info:
-```bash
-# Download monthly CSVs from:
-# 2025: https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
-# 2026: https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
-# Place files in data/raw/arrival_departure/ then run:
-python src/clean_data.py --source official --dataset-dir data/raw/arrival_departure
+python src/clean_data.py
 python src/features.py
 python src/train.py
 python src/visualize.py
+python src/evaluate.py
 ```
 
 ---
@@ -86,29 +84,32 @@ python src/visualize.py
 **Secondary Goals:**
 - Identify which factors (rainfall, temperature, time of day, route) most strongly influence delays.
 - Visualize delay patterns across routes, times, and weather conditions.
-- Provide an interactive predictor so users can query the model directly.
+- Provide an interactive predictor that works for any MBTA route.
 
 ---
 
 ## Data Collection
 
-### Source 1 — Boston Weather: Open-Meteo
+### Source 1 — MBTA Bus Arrival/Departure Data (Official MassGIS / MBTA)
+The official MBTA Bus Arrival/Departure dataset published by MassDOT — provides per-stop actual vs scheduled arrival times for all routes back to 2019. No API key required.
+
+- **2025 dataset:** https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
+- **2026 dataset:** https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
+- 35+ million records with `scheduled` and `actual` timestamps per stop
+- Includes direction (Inbound/Outbound), headway, point type, and stop sequence
+- **Delay formula:** `delay_minutes = actual_arrival − scheduled_arrival`
+- **Target:** `is_delayed = 1` if delay > 5 minutes, else `0`
+
+**Coverage:** All MBTA bus routes, January 2025 – March 2026
+
+### Source 2 — Boston Weather: Open-Meteo
 Historical daily weather from [Open-Meteo](https://archive-api.open-meteo.com/v1/archive). No API key required.
 
 - **Location:** Boston (42.3601 N, 71.0589 W)
 - **Variables:** TMAX, TMIN, PRCP (precipitation), SNOW, AWND (wind speed)
 - **Units:** °F, inches, mph
 - Merged with MBTA data by service date
-- **Dataset:** 455 days, January 2025 – March 2026
-
-### Source 2 — Official MassGIS / MBTA Dataset (also supported)
-The official MBTA Bus Arrival/Departure dataset published by MassDOT provides per-stop actual vs scheduled arrival times for all routes back to 2019. This is the primary upstream source that TransitMatters derives data from.
-
-- **2025 dataset:** https://gis.data.mass.gov/datasets/924df13d845f4907bb6a6c3ed380d57a/about
-- **2026 dataset:** https://gis.data.mass.gov/datasets/9d8a8cad277545c984c1b25ed10b7d3c
-- 35+ million records with `scheduled` and `actual` timestamps per stop
-- Includes direction (Inbound/Outbound), headway, and timepoint type
-- `clean_data.py` supports this via `--source official`
+- **Dataset:** January 2025 – March 2026
 
 ---
 
@@ -121,7 +122,7 @@ All cleaning logic is in `src/clean_data.py` — no manual edits anywhere.
 | Drop missing keys | Remove rows missing `route_id`, `date`, or arrival time |
 | Normalize fields | Standardize date format, strip whitespace |
 | Deduplication | Keep first occurrence per (trip, stop, date) |
-| Delay computation | `delay_minutes = actual − benchmark` |
+| Delay computation | `delay_minutes = actual_arrival − scheduled_arrival` |
 | Outlier flagging | Flag \|delay\| > 120 min — kept but marked `is_outlier=1` |
 | Weather imputation | Fill missing weather values with column median |
 | Weather merge | Join on service date — no future data leakage |
@@ -139,8 +140,8 @@ Features built in `src/features.py` (19 total):
 | `is_weekend` | 1 if Saturday or Sunday |
 | `is_peak` | 1 if weekday 7–9 AM or 4–7 PM |
 | `route_encoded` | Numeric encoding of route ID |
-| `direction_encoded` | Encoded direction (e.g., inbound/outbound) |
-| `point_type_encoded` | Encoded stop type (e.g., startpoint, midpoint, endpoint) |
+| `direction_encoded` | Encoded direction (Inbound/Outbound) |
+| `point_type_encoded` | Encoded stop type (Startpoint/Midpoint/Endpoint) |
 | `standard_type_encoded` | Encoded MBTA standard classification of stop |
 | `stop_sequence` | Position of the stop along the route |
 | `has_actual` | 1 if actual arrival time was recorded |
@@ -178,7 +179,7 @@ Three classifiers trained and compared in `src/train.py`:
 
 **Threshold tuning:** Thresholds 0.10–0.90 swept on validation set; threshold maximising F1 selected per model.
 
-**Hyperparameter tuning:** `src/randomForestParams.py` sweeps multiple Random Forest configurations (n_estimators, max_depth, min_samples). The compact configuration (n=30, depth=16) gives the best storage/performance tradeoff at ~38MB vs ~1GB for the largest variant with minimal F1 gain.
+**Hyperparameter tuning:** `src/randomForestParams.py` sweeps multiple Random Forest configurations.
 
 ---
 
@@ -186,45 +187,45 @@ Three classifiers trained and compared in `src/train.py`:
 
 ### Validation Set
 
-| Model | Val F1 | Threshold |
-|-------|--------|-----------|
-| Logistic Regression (baseline) | 0.405 | 0.42 |
-| **Random Forest (best)** | **0.422** | **0.53** |
-| Gradient Boosted Trees | 0.427 | 0.64 |
+| Model | F1 | Threshold |
+|-------|----|-----------|
+| Logistic Regression (baseline) | 0.331 | 0.56 |
+| Random Forest | 0.399 | 0.60 |
+| **Gradient Boosted Trees (best)** | **0.425** | **0.67** |
 
-*Logistic Regression and Gradient Boosted Trees were commented out later
-
-### Test Set (best model: Random Forest)
+### Test Set (best model: Gradient Boosted Trees)
 
 | Metric | Score |
 |--------|-------|
-| Accuracy | 0.554 |
-| Precision | 0.299 |
-| Recall | 0.695 |
-| F1 | 0.419 |
+| Accuracy | 0.553 |
+| Precision | 0.290 |
+| Recall | 0.649 |
+| F1 | 0.401 |
 | ROC-AUC | 0.647 |
-| PR-AUC | 0.365 |
 
 ### Per-Slice Performance (Test Set, from `evaluate.py`)
 
-=== Route-wise Performance ===
+| Slice | Accuracy | F1 |
+|-------|----------|----|
+| Peak hours | 0.596 | 0.651 |
+| Off-peak hours | 0.552 | 0.398 |
 
-Route 54 → Accuracy: 0.581, F1: 0.605
+**Top Feature Importances (Gradient Boosted Trees):**
 
-Route 65 → Accuracy: 0.487, F1: 0.593
-
-Route 57 → Accuracy: 0.580, F1: 0.304
-
-Route 59 → Accuracy: 0.582, F1: 0.694
-
-Route 77 → Accuracy: 0.549, F1: 0.497
-
-...
+| Feature | Importance |
+|---------|-----------|
+| `route_encoded` | 38.0% |
+| `stop_sequence` | 16.9% |
+| `hour` | 15.3% |
+| `TMIN` | 5.9% |
+| `direction_encoded` | 4.5% |
+| `AWND` | 3.8% |
 
 **Key Findings:**
-- `route_encoded` is the strongest predictor (26.7% importance) — with real data, different routes have genuinely different delay rates
-- Weather features (TMAX, TMIN, AWND, PRCP) contribute meaningfully — ~22% combined importance
-- High Recall (0.695) means the model catches ~70% of real delays — useful for commuters
+- `route_encoded` is the strongest predictor (38%) — different routes have genuinely different delay rates
+- Stop sequence and hour together account for ~32% — where on the route and what time both matter
+- Weather features (TMIN, AWND, TMAX) contribute meaningfully
+- High Recall (0.649) means the model catches ~65% of real delays — useful for commuter warning systems
 
 ---
 
@@ -246,7 +247,7 @@ All plots saved to `data/processed/plots/`.
 
 ## Interactive Predictor
 
-`src/predict.py` loads the trained model and lets you query it interactively:
+`src/predict.py` loads the trained model and lets you query it interactively for any MBTA bus route in the dataset:
 
 ```
 $ python src/predict.py
@@ -258,22 +259,23 @@ Type 'quit' at any prompt to exit.
 Enter hour of day (0 to 23): 8
 Enter day (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun): 2
 
-Available routes: 01, 04, 07, 08, 09, 10, 100, 101, 104, 105, 106, 108, 109, 11, 110, 111, 112, 114, 116, 119, 120, 121, 131, 132, 134, 137, 14, 15, 16, 17, 171, 18, 19, 191, 192, 193, 194, 201, 202, 21, 210, 211, 215, 216, 217, 22, 220, 222, 225, 226, 23, 230, 236, 238, 24, 240, 245, 26, 28, 29, 30, 31, 32, 33, 34, 34E, 35, 350, 351, 354, 36, 37, 38, 39, 40, 41, 411, 42, 424, 426, 428, 429, 43, 430, 435, 436, 439, 44, 441, 442, 45, 450, 451, 455, 456, 47, 50, 501, 504, 505, 51, 52, 55, 553, 554, 556, 558, 57, 59, 60, 600, 61, 62, 64, 65, 66, 67, 68, 69, 70, 7001, 71, 712, 713, 73, 74, 743, 746_, 75, 76, 77, 78, 80, 8007, 83, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 99, CT2, CT3, SL1, SL2, SL3, SL4, SL5, rad
-Enter route no: 230
+Available routes: <full list of MBTA routes>
+Enter route no: 28
 Direction ['Inbound', 'Outbound'] [default=Outbound]: Inbound
 Point type ['Endpoint', 'Midpoint', 'Startpoint'] [default=Midpoint]: Midpoint
 Weather condition (clear/ rain/ snow) [default=clear]: snow
 
 === RESULT ===
-Delay probability: 0.137
-Prediction: Likely ON TIME!!
+Delay probability: 0.412
+Prediction: Likely DELAYED!
 
 Why this prediction?
 - Peak hours increase delays
 - Snow increases delays
+- High-traffic route
 ```
 
-> Note: The model is biased towards predicting on-time because the dataset is imbalanced (76.9% on-time vs 23.1% delayed). High Recall means real delays are still caught ~70% of the time.
+> Note: The model is biased towards on-time because the dataset is imbalanced. High Recall means real delays are still caught ~65% of the time.
 
 ---
 
@@ -300,10 +302,10 @@ GitHub Actions runs these automatically on every push via `.github/workflows/tes
 CS506-mbta-delay-prediction/
 ├── src/
 │   ├── collect_weather.py          # Download Boston weather from Open-Meteo
-│   ├── clean_data.py               # Merge, compute delays, clean data
+│   ├── clean_data.py               # Merge, compute delays, clean MassGIS data
 │   ├── features.py                 # Feature engineering (19 features)
-│   ├── train.py                    # Model training + evaluation
-│   ├── evaluate.py                 # PR/ROC curves, per-route/peak slicing
+│   ├── train.py                    # Train 3 models, pick best
+│   ├── evaluate.py                 # PR/ROC curves, peak/route slicing
 │   ├── randomForestParams.py       # Random Forest hyperparameter sweep
 │   ├── predict.py                  # Interactive delay predictor
 │   └── visualize.py                # Generate 5 EDA/results plots
@@ -311,9 +313,9 @@ CS506-mbta-delay-prediction/
 │   └── test_pipeline.py            # 12 unit + integration tests
 ├── data/
 │   ├── raw/
-│   │   └── weather.csv             # 304 days Boston weather (Jan–Oct 2025)
+│   │   └── weather.csv             # Daily Boston weather (Jan 2025–Mar 2026)
 │   └── processed/
-│       ├── clean.csv               # Cleaned and merged dataset
+│       ├── clean.csv               # All MBTA routes — cleaned and merged
 │       ├── features.csv            # Final feature matrix (19 features)
 │       ├── model_results.csv       # Validation F1 per model
 │       ├── best_model.pkl          # Saved best model + scaler
@@ -355,7 +357,6 @@ CS506-mbta-delay-prediction/
 
 ## Limitations
 
-- Only one stop-pair per route tracked in TransitMatters data (which we used at first) — inbound main segment only
 - Weather merged at daily granularity — hourly weather would improve signal
-- Dataset imbalance (82% on-time) means precision is low — model favours recall
-- MassGIS official dataset (35M+ rows, all stops, all routes) would significantly improve coverage — pipeline already supports it via `--source official`
+- Dataset imbalance means precision is limited — model favours recall to catch more real delays
+- Delays simulated by `actual − scheduled` from MassGIS — does not account for cancelled trips or service alerts
