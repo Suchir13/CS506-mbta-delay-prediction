@@ -99,7 +99,7 @@ Historical daily weather from [Open-Meteo](https://archive-api.open-meteo.com/v1
 - **Variables:** TMAX, TMIN, PRCP (precipitation), SNOW, AWND (wind speed)
 - **Units:** °F, inches, mph
 - Merged with MBTA data by service date
-- **Dataset:** 304 days, January 2025 – October 2025
+- **Dataset:** 455 days, January 2025 – March 2026
 
 ### Source 2 — Official MassGIS / MBTA Dataset (also supported)
 The official MBTA Bus Arrival/Departure dataset published by MassDOT provides per-stop actual vs scheduled arrival times for all routes back to 2019. This is the primary upstream source that TransitMatters derives data from.
@@ -130,7 +130,7 @@ All cleaning logic is in `src/clean_data.py` — no manual edits anywhere.
 
 ## Feature Extraction
 
-Features built in `src/features.py` (15 total):
+Features built in `src/features.py` (19 total):
 
 | Feature | Description |
 |---------|-------------|
@@ -191,16 +191,18 @@ Three classifiers trained and compared in `src/train.py`:
 | **Random Forest (best)** | **0.422** | **0.53** |
 | Gradient Boosted Trees | 0.427 | 0.64 |
 
+*Logistic Regression and Gradient Boosted Trees were commented out later
+
 ### Test Set (best model: Random Forest)
 
 | Metric | Score |
 |--------|-------|
-| Accuracy | 0.352 |
-| Precision | 0.152 |
-| Recall | 0.765 |
-| F1 | 0.254 |
-| ROC-AUC | 0.544 |
-| PR-AUC | 0.157 |
+| Accuracy | 0.554 |
+| Precision | 0.299 |
+| Recall | 0.695 |
+| F1 | 0.419 |
+| ROC-AUC | 0.647 |
+| PR-AUC | 0.365 |
 
 ### Per-Slice Performance (Test Set, from `evaluate.py`)
 
@@ -212,10 +214,9 @@ Three classifiers trained and compared in `src/train.py`:
 | Route 28 (encoded=4) | 0.351 | 0.251 |
 
 **Key Findings:**
-- `route_encoded` is the strongest predictor (58.7% importance) — with real data, different routes have genuinely different delay rates
+- `route_encoded` is the strongest predictor (26.7% importance) — with real data, different routes have genuinely different delay rates
 - Weather features (TMAX, TMIN, AWND, PRCP) contribute meaningfully — ~22% combined importance
-- High Recall (0.765) means the model catches ~77% of real delays — useful for commuters
-- Validation–test F1 gap reflects seasonal threshold shift — tuned on summer/fall, tested on later fall with different delay distribution
+- High Recall (0.695) means the model catches ~70% of real delays — useful for commuters
 
 ---
 
@@ -264,7 +265,7 @@ Why this prediction?
 - Snow increases delays
 ```
 
-> Note: The model is biased towards predicting on-time because the dataset is imbalanced (82% on-time vs 18% delayed). High Recall means real delays are still caught ~77% of the time.
+> Note: The model is biased towards predicting on-time because the dataset is imbalanced (76.9% on-time vs 23.1% delayed). High Recall means real delays are still caught ~70% of the time.
 
 ---
 
@@ -292,7 +293,7 @@ CS506-mbta-delay-prediction/
 ├── src/
 │   ├── collect_weather.py          # Download Boston weather from Open-Meteo
 │   ├── clean_data.py               # Merge, compute delays, clean data
-│   ├── features.py                 # Feature engineering (15 features)
+│   ├── features.py                 # Feature engineering (19 features)
 │   ├── train.py                    # Model training + evaluation
 │   ├── evaluate.py                 # PR/ROC curves, per-route/peak slicing
 │   ├── randomForestParams.py       # Random Forest hyperparameter sweep
@@ -302,11 +303,10 @@ CS506-mbta-delay-prediction/
 │   └── test_pipeline.py            # 12 unit + integration tests
 ├── data/
 │   ├── raw/
-│   │   ├── travel_times.csv        # 131,753 real trip records (Jan–Oct 2025)
 │   │   └── weather.csv             # 304 days Boston weather (Jan–Oct 2025)
 │   └── processed/
 │       ├── clean.csv               # Cleaned and merged dataset
-│       ├── features.csv            # Final feature matrix (15 features)
+│       ├── features.csv            # Final feature matrix (19 features)
 │       ├── model_results.csv       # Validation F1 per model
 │       ├── best_model.pkl          # Saved best model + scaler
 │       ├── split_info.csv          # Train/val/test split indices
@@ -349,6 +349,5 @@ CS506-mbta-delay-prediction/
 
 - Only one stop-pair per route tracked in TransitMatters data (which we used at first) — inbound main segment only
 - Weather merged at daily granularity — hourly weather would improve signal
-- Validation–test F1 gap (0.422 → 0.254) suggests threshold doesn't generalise across seasons
 - Dataset imbalance (82% on-time) means precision is low — model favours recall
 - MassGIS official dataset (35M+ rows, all stops, all routes) would significantly improve coverage — pipeline already supports it via `--source official`
