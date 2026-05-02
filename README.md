@@ -189,7 +189,7 @@ Three classifiers trained and compared in `src/train.py`:
 | Model | Val F1 | Threshold |
 |-------|--------|-----------|
 | Logistic Regression (baseline) | 0.405 | 0.42 |
-| **Random Forest (best)** | **0.422** | **0.53** |
+| **Random Forest (best)** | **0.399** | **0.60** |
 | Gradient Boosted Trees | 0.427 | 0.64 |
 
 *Logistic Regression and Gradient Boosted Trees were commented out later
@@ -218,6 +218,7 @@ Route 57 → Accuracy: 0.580, F1: 0.304
 Route 59 → Accuracy: 0.582, F1: 0.694
 
 Route 77 → Accuracy: 0.549, F1: 0.497
+
 ...
 
 **Key Findings:**
