@@ -139,6 +139,10 @@ Features built in `src/features.py` (15 total):
 | `is_weekend` | 1 if Saturday or Sunday |
 | `is_peak` | 1 if weekday 7–9 AM or 4–7 PM |
 | `route_encoded` | Numeric encoding of route ID |
+| `direction_encoded` | Encoded direction (e.g., inbound/outbound) |
+| `point_type_encoded` | Encoded stop type (e.g., startpoint, midpoint, endpoint) |
+| `standard_type_encoded` | Encoded MBTA standard classification of stop |
+| `stop_sequence` | Position of the stop along the route |
 | `has_actual` | 1 if actual arrival time was recorded |
 | `scheduled_headway_minutes` | Planned gap between buses (minutes) |
 | `scheduled_headway_missing` | 1 if headway data was absent |
@@ -149,6 +153,7 @@ Features built in `src/features.py` (15 total):
 | `SNOW` | Daily snowfall (inches) |
 | `AWND` | Average wind speed (mph) |
 
+> `is_delayed` is our target variable (1 if delay > 5 minutes, else 0)
 > `route_avg_delay` was excluded — computing it before the train/test split introduces data leakage.
 
 ---
